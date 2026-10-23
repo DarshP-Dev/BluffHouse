@@ -74,3 +74,12 @@ Cut from the initial MVP, not discarded from the vision:
 - Public matchmaking, accounts, persistent profiles, avatars, achievements, lifetime standings, voice chat, and dedicated duel/event spectator views: unnecessary for the private guest-room proof.
 
 No full-vision feature is permanently rejected. See the roadmap for retained details.
+
+
+## Phase 5 Party Expansion Approval
+
+The learner approved the 17-slice Fast-mode build in `checklist.md`, including its corrected **Approved Party-Mode Rules**. The original Classic three-round Blackjack / Call My Bluff behavior above remains the required baseline. Deferred-from-POC language describes that Classic boundary; the approved additional Party work follows only after the verified slice-3 core and actual early learner feedback. The original vision is preserved.
+
+Party commissions are additional fictional dealer-bank payments: floor(3% of eligible positive Blackjack profit), maximum 50 total per round, allocated in settled seat order. They never reduce advertised player payouts and must be included in net dealer funding and idempotent settlement tests. Shadow Draw uses a specific declared total 17–21: an unchallenged lie scores the declaration plus one and can win despite a real bust; challenged exact truth scores real total plus two and penalizes/reveals the incorrect challenger; a caught lie is disqualified and rewards the successful caller two points. No-claim busts are ineligible. Jackpot payouts remain funded and once-only. Six-round Party will attempt two sequential, bounded social contests after the one-contest engine is verified, with an immutable 180-second phase cap and one qualifying bounty defense per target per interval. See the checklist for complete outcome, privacy, deadline, and regression criteria.
+
+This approval authorizes local implementation, verification, and meaningful commits in the existing repository. It does not authorize push, deployment, purchases, or history rewriting. All unimplemented slices remain unchecked.

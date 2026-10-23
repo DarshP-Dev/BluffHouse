@@ -1,0 +1,10 @@
+import {createApp} from './app.js';
+const port=Number(process.env.PORT??3000);
+if(!Number.isInteger(port)||port<1||port>65535)throw new Error('PORT must be 1–65535.');
+const production=process.env.NODE_ENV==='production';
+if(production&&!process.env.PUBLIC_ORIGIN)throw new Error('Production requires PUBLIC_ORIGIN.');
+const server=createApp({production,origin:process.env.PUBLIC_ORIGIN??`http://localhost:${port}`});
+await server.listen(port,process.env.HOST??'127.0.0.1');
+console.log(`Bluff House listening on port ${port}.`);
+let closing=false;
+for(const signal of ['SIGINT','SIGTERM'] as const)process.on(signal,()=>{if(closing)return;closing=true;void server.close().then(()=>process.exit(0));});
