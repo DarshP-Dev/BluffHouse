@@ -110,7 +110,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
 
 ## Slices
 
-- [ ] **1. Friends can join a real table and finish a funded Blackjack round**
+- [x] **1. Friends can join a real table and finish a funded Blackjack round**
   Becomes usable: A casino-styled menu, private lobby, synchronized readiness, and an actual server-run round with bets, Hit/Stand, dealer play, and correct chip settlement in multiple browsers.
   Why now: Establishes the complete browser-to-server path and the highest-risk accounting/identity boundaries inside playable behavior; all later slices depend on it. Bootstrapping is included here.
   PRD ref: `prd.md > The Core Journey` (steps 1–5), `Private Rooms and Match Start`, `Betting and Chip Availability`, `Blackjack Rules and Player Turns`, `Blackjack Settlement and Round Progression`, `Look and Feel`.
@@ -320,7 +320,8 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run dev` started both processes; localhost:5173 page returned HTTP 200 and proxied `/api/health` returned ok. No hosted test or deployment performed.
 - Browser verification found and repaired same-origin polling admission and dropped volatile first commands during transport upgrade. Commands now use connected-only sends and clear offline buffers; exact origin/fetch-metadata checks remain enforced.
 - A Windows orphaned project esbuild helper initially blocked clean install; identified its exact workspace executable, stopped that helper, and reran clean installation successfully. Earlier failed browser attempts are not counted as passes.
-- Local slice commit: pending creation; immediate checklist completion/hash follows successful commit. Next slice: Call My Bluff. Early learner checkpoint remains pending after slice 3.
+- Optional Discord project-post suggestion delivered once after slice 1; no post sent on the learner's behalf.
+- Local slice commit: 08ce432. Next slice: Call My Bluff. Early learner checkpoint remains pending after slice 3.
 
 ## Revisions
 
