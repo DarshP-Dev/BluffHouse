@@ -1,10 +1,11 @@
 import {randomInt,randomUUID} from 'node:crypto';
-import {RULES,validName,type Ack,type Command,type CommandType,type RoomView} from '@bluff-house/shared';
+import {RULES,EMOJIS,validName,type Ack,type Command,type CommandType,type RoomView,type TableEvent} from '@bluff-house/shared';
 import {makeShoe} from './game/cards.js';
 import {account} from './game/ledger.js';
 import {GameError,requireRule,type Room,type EngineOptions} from './game/state.js';
 import {addEvent,assertRoom,connected,createRoom,deadlineTransition,gameCommand,makePlayer,roundBoundary,startMatch} from './game/engine.js';
 import {project} from './projection.js';
+import {cancelBluff} from './game/bluff.js';
 
 const TYPES:CommandType[]=['room:create','room:join','lobby:ready','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
 const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','payload'];
@@ -23,8 +24,10 @@ interface Recorded {fingerprint:string;ack:Ack;roomId?:string}
 export class RoomManager {
   readonly rooms=new Map<string,Room>();readonly codes=new Map<string,string>();readonly membership=new Map<string,string>();
   readonly records=new Map<string,Recorded>();readonly settlementArchive=new Map<string,Record<string,number>[]>();
+  readonly lastReaction=new Map<string,number>();
   readonly e:EngineOptions;
   onChange:(room:Room)=>void=()=>{};
+  onReaction:(room:Room,event:TableEvent)=>void=()=>{};
   constructor(readonly instanceId:string,options:Partial<EngineOptions>={},readonly maxRooms=20){this.e={now:options.now??(()=>Date.now()),id:options.id??randomUUID,shoe:options.shoe??makeShoe};}
   roomFor(id:string){return this.rooms.get(this.membership.get(id)??'');}
   snapshot(id:string):RoomView|null{const r=this.roomFor(id);return r?project(r,id,this.instanceId,this.e.now()):null;}
@@ -44,7 +47,7 @@ export class RoomManager {
   presence(id:string,isConnected:boolean){
     this.reconcile();const r=this.roomFor(id);if(!r)return;
     const p=r.players.find(p=>p.id===id);if(!p||p.departed||p.connected===isConnected)return;
-    this.update(r,d=>{const player=d.players.find(p=>p.id===id)!;player.connected=isConnected;player.disconnectedAt=isConnected?null:this.e.now();if(!isConnected)player.ready=false;addEvent(d,this.e,'presence',`${player.name} ${isConnected?'reconnected':'disconnected'}.`,this.e.now(),id);this.presenceRules(d,this.e.now());});
+    this.update(r,d=>{const player=d.players.find(p=>p.id===id)!;player.connected=isConnected;player.disconnectedAt=isConnected?null:this.e.now();if(!isConnected){player.ready=false;if(d.phase==='BLUFF_OFFER'&&d.bluff?.claimantId===id){cancelBluff(d,this.e,this.e.now(),'cancelled');addEvent(d,this.e,'bluff','Offer cancelled after claimant disconnect; reservation returned.',this.e.now(),id);}}addEvent(d,this.e,'presence',`${player.name} ${isConnected?'reconnected':'disconnected'}.`,this.e.now(),id);this.presenceRules(d,this.e.now());});
   }
   command(id:string,raw:unknown):Ack {
     let c:Command|undefined,recordKey:string|undefined,recordFingerprint:string|undefined;
@@ -72,6 +75,17 @@ export class RoomManager {
         this.membership.set(id,target.instanceId);targetId=r.instanceId;
       }else {
         requireRule(r,'NO_MEMBERSHIP','This room is no longer available.');requireRule(c.roomInstanceId===r.instanceId,'STALE_ROOM');targetId=r.instanceId;
+        if(c.type==='reaction:send'){
+          const player=r.players.find(p=>p.id===id);requireRule(player&&player.connected&&!player.departed,'NO_MEMBERSHIP');
+          if(r.phase==='LOBBY')requireRule(c.lobbyId===r.lobbyId,'STALE_LOBBY');else requireRule(c.matchId===r.matchId,'STALE_MATCH');
+          const emoji=c.payload?.emoji,now=this.e.now();
+          requireRule(typeof emoji==='string'&&(EMOJIS as readonly string[]).includes(emoji),'INVALID_REACTION');
+          requireRule(now-(this.lastReaction.get(id)??-Infinity)>=1000,'REACTION_COOLDOWN','One reaction per second.');
+          const ack:Ack={requestId:c.requestId,status:'ok',code:'OK',appliedRevision:r.revision,currentRevision:r.revision};
+          this.lastReaction.set(id,now);this.records.set(key,{fingerprint,ack,roomId:r.instanceId});
+          this.onReaction(r,{id:this.e.id(),kind:'reaction',text:`${player.name} ${emoji}`,playerId:id,at:now,revision:r.revision});
+          return ack;
+        }
         const was=r;const command=c;
         r=this.update(was,d=>{
           const p=d.players.find(p=>p.id===id);requireRule(p&&!p.departed&&p.connected,'NO_MEMBERSHIP');
@@ -82,20 +96,21 @@ export class RoomManager {
             case 'lobby:ready':requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(typeof command.payload?.ready==='boolean','INVALID_READY');p.ready=command.payload.ready;break;
             case 'match:start':requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');startMatch(d,this.e,now);break;
             case 'room:leave':
+              if(d.phase==='BLUFF_OFFER'&&d.bluff?.claimantId===id)cancelBluff(d,this.e,now,'cancelled');
               p.connected=false;p.departed=true;p.ready=false;p.disconnectedAt=now;
               if(d.phase==='LOBBY')d.players=d.players.filter(p=>p.id!==id);
               addEvent(d,this.e,'leave',`${p.name} left the table.`,now,id);this.presenceRules(d,now);break;
             case 'results:return':{
               requireRule(d.phase==='RESULTS','PHASE_LOCKED');
               // Archive economic records outside the reset gameplay state.
-              d.phase='LOBBY';d.lobbyId=this.e.id();d.matchId=undefined;d.roundId=undefined;d.round=0;d.initialChips=0;d.dealerNet=0;d.shoe=[];d.cursor=0;d.dealer=[];d.dealerRevealed=false;d.deadline=null;d.decisionId=undefined;d.bettingId=undefined;d.bluff=null;d.biggestBluff=null;d.results=null;d.resultsSince=null;d.recoveryDeadline=null;d.terminationConfirmed=false;
+              d.phase='LOBBY';d.lobbyId=this.e.id();d.matchId=undefined;d.roundId=undefined;d.round=0;d.initialChips=0;d.dealerNet=0;d.shoe=[];d.cursor=0;d.dealer=[];d.dealerRevealed=false;d.deadline=null;d.decisionId=undefined;d.bettingId=undefined;d.bluff=null;d.biggestBluff=null;d.bluffOutcomes=[];d.results=null;d.resultsSince=null;d.recoveryDeadline=null;d.terminationConfirmed=false;
               d.players=d.players.filter(p=>!p.departed);for(const player of d.players){player.account=account();player.hand=[];player.wager=0;player.wagerId=undefined;player.status='waiting';player.ready=false;player.participating=false;player.bluffUsed=false;player.bluffWins=0;player.bluffLosses=0;if(!player.connected)player.disconnectedAt=now;}
               this.presenceRules(d,now);addEvent(d,this.e,'lobby','Back at the table. Ready up for a fresh match.',now);break;
             }
             default:requireRule(command.roundId===d.roundId,'STALE_ROUND');gameCommand(d,p,command,this.e,now);
           }
         });
-        if(c.type==='room:leave')this.membership.delete(id);
+        if(c.type==='room:leave'){this.membership.delete(id);this.lastReaction.delete(id);}
         if(c.type==='results:return')this.settlementArchive.set(was.instanceId,[...(this.settlementArchive.get(was.instanceId)??[]),...was.players.map(p=>({...p.account.settlements}))]);
       }
       const ack:Ack={requestId:c.requestId,status:'ok',code:'OK',appliedRevision:r.revision,currentRevision:r.revision};

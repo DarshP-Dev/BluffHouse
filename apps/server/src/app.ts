@@ -52,6 +52,7 @@ export function createApp(options:AppOptions={}){
   io.use((socket,next)=>{const guest=cookieGuest(socket.request.headers.cookie);if(!guest)return next(new Error('Session unavailable. Return to the menu.'));socket.data.guest=guest;next();});
   const sendState=(guest:Guest)=>{const snapshot=manager.snapshot(guest.id);if(snapshot)guest.socket?.emit('room:state',snapshot);};
   manager.onChange=room=>{for(const p of room.players){const guest=guests.get(p.id);if(guest&&!p.departed&&p.connected&&manager.membership.get(p.id)===room.instanceId)sendState(guest);}};
+  manager.onReaction=(room,event)=>{for(const p of room.players)if(p.connected&&!p.departed&&manager.membership.get(p.id)===room.instanceId)guests.get(p.id)?.socket?.emit('room:reaction',{roomInstanceId:room.instanceId,event});};
   io.on('connection',socket=>{
     const guest=socket.data.guest as Guest,old=guest.socket,generation=++guest.generation;guest.socket=socket;guest.lastSeen=now();
     if(old&&old!==socket){old.emit('session:replaced',{message:'Session opened elsewhere.'});old.disconnect(true);}

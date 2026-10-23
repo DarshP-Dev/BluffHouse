@@ -2,6 +2,7 @@ import {RULES,validAmount,type Command,type MatchResults} from '@bluff-house/sha
 import {account,assertAccount,available,reserve,release,commit,settle} from './ledger.js';
 import {evaluate} from './cards.js';
 import {payout,dealerShouldHit} from './blackjack.js';
+import {offerBluff,acceptBluff,cancelBluff} from './bluff.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -12,7 +13,7 @@ export function makePlayer(id:string,name:string,seat:number,now:number):Player 
   return {id,name,seat,joinedAt:now,connected:true,departed:false,ready:false,disconnectedAt:null,account:account(),hand:[],status:'waiting',wager:0,participating:false,bluffUsed:false,bluffWins:0,bluffLosses:0};
 }
 export function createRoom(code:string,player:Player,e:EngineOptions):Room {
-  return {instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
+  return {instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
 }
 export function connected(r:Room){return r.players.filter(p=>p.connected&&!p.departed&&(r.phase==='LOBBY'||p.participating));}
 export function active(r:Room):Player {const p=r.players.find(p=>p.id===r.activePlayerId);requireRule(p,'NO_ACTIVE_PLAYER');return p;}
@@ -26,7 +27,7 @@ export function startRound(r:Room,e:EngineOptions,now:number){
 export function startMatch(r:Room,e:EngineOptions,now:number){
   const players=connected(r);requireRule(players.length>=2,'NOT_ENOUGH_PLAYERS','At least two connected players are needed.');
   requireRule(players.every(p=>p.ready),'NOT_READY','Everyone connected must be ready.');
-  r.matchId=e.id();r.round=0;r.initialChips=players.length*RULES.startingChips;r.dealerNet=0;r.results=null;r.resultsSince=null;r.biggestBluff=null;r.terminationConfirmed=false;r.recoveryDeadline=null;
+  r.matchId=e.id();r.round=0;r.initialChips=players.length*RULES.startingChips;r.dealerNet=0;r.results=null;r.resultsSince=null;r.biggestBluff=null;r.bluffOutcomes=[];r.terminationConfirmed=false;r.recoveryDeadline=null;
   // Absent lobby guests are not participants in this new match.
   for(const p of r.players){p.participating=p.connected&&!p.departed;p.account=account();p.bluffWins=0;p.bluffLosses=0;}
   startRound(r,e,now);
@@ -77,6 +78,8 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
       if(evaluate(r.dealer).natural)settleRound(r,e,at);else nextTurn(r,e,at);break;
     }
     case 'PLAYER_TURN': {const p=active(r);p.status='stood';addEvent(r,e,'timeout',`${p.name} automatically stands.`,at,p.id);nextTurn(r,e,at);break;}
+    case 'BLUFF_OFFER': cancelBluff(r,e,at,'expired');addEvent(r,e,'bluff','Nobody called. Reserved chips returned; no card drawn.',at);break;
+    case 'BLUFF_REVEAL': finishHit(r,e,at);break;
     case 'DEALER_TURN': {if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
     case 'ROUND_RESULT': roundBoundary(r,e,at);break;
     default: requireRule(false,'INVALID_PHASE_DEADLINE');
@@ -84,6 +87,11 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
 }
 export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   switch(c.type){
+    case 'bluff:offer': offerBluff(r,p,c,e,now);addEvent(r,e,'bluff',`${p.name}: “My next hit won't bust.” ${r.bluff!.amount} chips to call.`,now,p.id);break;
+    case 'bluff:accept': {
+      acceptBluff(r,p,c,e,now);const winner=r.players.find(p=>p.id===r.bluff!.winnerId)!;
+      addEvent(r,e,'bluff',`${winner.name} wins the ${r.bluff!.pot}-chip bluff pot (+${r.bluff!.amount} net).`,now,winner.id);break;
+    }
     case 'bet:submit': case 'bet:withdraw': {
       requireRule(r.phase==='BETTING'&&c.bettingId===r.bettingId,'STALE_BETTING','Betting is closed or this round has changed.');
       requireRule(p.participating,'NOT_PARTICIPATING');
@@ -105,4 +113,8 @@ export function assertRoom(r:Room){
   if(r.matchId)requireRule(total===r.initialChips+r.dealerNet,'LEDGER_INVARIANT');
   const dealt=r.players.flatMap(p=>p.hand).concat(r.dealer);requireRule(new Set(dealt.map(c=>c.id)).size===dealt.length,'DUPLICATE_CARD');
   requireRule(r.cursor===dealt.length,'DRAW_INVARIANT');
+  requireRule(new Set(r.bluffOutcomes.map(o=>o.id)).size===r.bluffOutcomes.length,'DUPLICATE_BLUFF');
+  requireRule(r.players.reduce((n,p)=>n+p.bluffWins,0)===r.bluffOutcomes.length,'BLUFF_STATS_INVARIANT');
+  requireRule(r.players.reduce((n,p)=>n+p.bluffLosses,0)===r.bluffOutcomes.length,'BLUFF_STATS_INVARIANT');
+  for(const offer of r.bluffOutcomes){requireRule(offer.status==='accepted'&&offer.card&&offer.winnerId&&offer.challengerId&&offer.pot===offer.amount*2,'BLUFF_SETTLEMENT_INVARIANT');}
 }

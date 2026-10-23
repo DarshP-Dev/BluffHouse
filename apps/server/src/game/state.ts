@@ -11,7 +11,7 @@ export interface Room {
   matchId?:string; roundId?:string; round:number; initialChips:number; dealerNet:number;
   shoe:Card[]; cursor:number; dealer:Card[]; dealerRevealed:boolean;
   deadline:number|null; decisionId?:string; bettingId?:string; activePlayerId?:string;
-  bluff:BluffView|null; pausedRemaining:number; biggestBluff:BluffView|null;
+  bluff:BluffView|null; pausedRemaining:number; biggestBluff:BluffView|null; bluffOutcomes:BluffView[];
   events:TableEvent[]; results:MatchResults|null; recoveryDeadline:number|null; terminationConfirmed:boolean;
   hostDeadline:number|null; emptySince:number|null; resultsSince:number|null;
 }

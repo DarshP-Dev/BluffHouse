@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import type { Ack, Command, CommandType, RoomView, SessionResponse } from '@bluff-house/shared';
+import type { Ack, Command, CommandType, RoomView, SessionResponse, TableEvent } from '@bluff-house/shared';
 
 export type ConnectionStatus = 'checking' | 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'replaced' | 'lost';
 export interface ConnectionState {
@@ -8,9 +8,10 @@ export interface ConnectionState {
   error: string | null;
   pending: CommandType | null;
   clockOffset: number;
+  reactions: TableEvent[];
 }
 
-let state: ConnectionState = { status: 'checking', room: null, error: null, pending: null, clockOffset: 0 };
+let state: ConnectionState = { status: 'checking', room: null, error: null, pending: null, clockOffset: 0, reactions: [] };
 let socket: Socket | null = null;
 let initialized = false;
 let pendingRequestId: string | null = null;
@@ -59,7 +60,16 @@ function connectSocket(): Promise<void> {
   next.on('room:state', (room: RoomView) => {
     if (socket !== next) return;
     if (state.room?.instanceId === room.instanceId && room.revision < state.room.revision) return;
-    publish({ room, status: 'connected', clockOffset: room.serverTime - Date.now() });
+    const sameTable = state.room?.instanceId === room.instanceId && state.room?.lobbyId === room.lobbyId;
+    publish({ room, status: 'connected', clockOffset: room.serverTime - Date.now(), reactions: sameTable ? state.reactions : [] });
+  });
+  next.on('room:reaction', ({ roomInstanceId, event }: { roomInstanceId: string; event: TableEvent }) => {
+    if (socket !== next || state.status !== 'connected' || state.room?.instanceId !== roomInstanceId || state.reactions.some(item => item.id === event.id)) return;
+    // Reactions are transient presentation events; they never replace a game snapshot.
+    publish({ reactions: [...state.reactions.slice(-11), event] });
+    window.setTimeout(() => {
+      if (socket === next && state.reactions.some(item => item.id === event.id)) publish({ reactions: state.reactions.filter(item => item.id !== event.id) });
+    }, 3000);
   });
   next.on('session:replaced', () => {
     if (socket !== next) return;
@@ -81,7 +91,7 @@ function connectSocket(): Promise<void> {
     publish({ status: 'reconnecting', pending: null });
   });
   next.on('room:left', () => {
-    if (socket === next) publish({ room: null });
+    if (socket === next) publish({ room: null, reactions: [] });
   });
   next.on('connect', () => {
     if (socket !== next) return;
@@ -178,5 +188,5 @@ export function returnToMenu() {
   socket = null;
   pendingRequestId = null;
   old?.disconnect();
-  publish({ status: 'idle', room: null, pending: null, error: null });
+  publish({ status: 'idle', room: null, pending: null, error: null, reactions: [] });
 }
