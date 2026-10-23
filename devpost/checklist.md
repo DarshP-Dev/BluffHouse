@@ -120,7 +120,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: At the early checkpoint, open localhost:5173 in independent browser profiles, host/join, ready up, place/edit a wager, and play Hit/Stand. Compare the visible cards and chip changes across players.
   Commit: `feat: add private multiplayer Blackjack with funded wagers`
 
-- [ ] **2. Call a friend's bluff, finish three rounds, and replay**
+- [x] **2. Call a friend's bluff, finish three rounds, and replay**
   Becomes usable: The complete signature Classic loop: offer, competing acceptance, one shared card/pot outcome, reactions, three rounds, real standings, and same-room replay.
   Why now: Depends on slice 1's legal turns and ledger; proves the unique kernel before expansion or extensive cosmetic work.
   PRD ref: `prd.md > Call My Bluff Eligibility and Offer`, `Call My Bluff Reveal and Settlement`, `Shared Reactions and Announcements`, `Match Results`, `The Core Journey`.
@@ -330,7 +330,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run test:e2e -- tests/e2e/match.spec.ts` passed **2 tests**, including its production build. Four isolated guests completed three rounds for both claimant survival and bust, saw identical funded outcomes, tied final winners, and replayed with fresh stacks/readiness. Injected obsolete snapshots and duplicate reaction events did not replace the reveal or duplicate displayed reactions. No browser page errors.
 - Inspected 390px mobile bluff-reveal and desktop results screenshots; no horizontal page overflow. Required early learner review is still pending after Slice 3.
 - User reported that the separate Slice 1 test checkout served over LAN but room creation showed Reconnecting. That checkout has not been edited. Slice 3 must reproduce and resolve LAN origin/session/connection handling before claiming the Classic core verified. Current dev code forces localhost origin, and browser request IDs depend on a secure-context API; these are investigation leads, not a claimed diagnosis of the user's device.
-- Local slice commit: recorded immediately after committing this verified milestone.
+- Local slice commit: `5d6d257`. Next slice: Classic recovery and lifecycle, including the reported LAN failure.
 
 ## Revisions
 
