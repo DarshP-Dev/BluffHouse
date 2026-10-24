@@ -5,6 +5,7 @@ import {payout,dealerShouldHit} from './blackjack.js';
 import {offerBluff,acceptBluff,cancelBluff} from './bluff.js';
 import {startAuction,closeAuction,submitBid,payCommission,distributeVault} from './house.js';
 import {openSocial,duelCommand,socialDeadline,closeSocial,assertDuels} from './duels.js';
+import {overthrowCommand} from './overthrow.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -96,12 +97,13 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
     case 'BLUFF_REVEAL': finishHit(r,e,at);break;
     case 'DEALER_TURN': {if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
     case 'ROUND_RESULT': roundBoundary(r,e,at);break;
-    case 'SOCIAL':case 'DUEL':case 'DUEL_RESULT': if(socialDeadline(r,e,at)){closeSocial(r);roundBoundary(r,e,at);}break;
+    case 'SOCIAL':case 'LAST_STAND_CHOICE':case 'DUEL':case 'DUEL_RESULT': if(socialDeadline(r,e,at)){closeSocial(r);roundBoundary(r,e,at);}break;
     default: requireRule(false,'INVALID_PHASE_DEADLINE');
   }
 }
 export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   switch(c.type){
+    case 'house:ballot':case 'house:vote':case 'house:choose':overthrowCommand(r,p,c,e,now);break;
     case 'duel:invite':case 'duel:reject':case 'duel:accept':case 'duel:choose':case 'duel:move':case 'duel:resign':duelCommand(r,p,c,e,now);break;
     case 'house:bid': submitBid(r,p,c);break;
     case 'bluff:offer': offerBluff(r,p,c,e,now);addEvent(r,e,'bluff',`${p.name}: “My next hit won't bust.” ${r.bluff!.amount} chips to call.`,now,p.id);break;

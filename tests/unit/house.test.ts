@@ -3,6 +3,13 @@ import {assertRoom} from '../../apps/server/src/game/engine.js';
 import {closeAuction,distributeVault,payCommission} from '../../apps/server/src/game/house.js';
 import {credit,account} from '../../apps/server/src/game/ledger.js';
 import {fixture} from '../fixtures/core.js';
+import {overthrowThreshold} from '../../apps/server/src/game/overthrow.js';
+
+describe('75 percent overthrow threshold',()=>{
+  it.each([[1,1],[2,2],[3,3],[4,3],[5,4]])('requires %s eligible voters to supply %s affirmative votes',(voters,required)=>{
+    expect(overthrowThreshold(voters)).toBe(required);
+  });
+});
 
 function crowned(players=2){
   const f=fixture({mode:'PARTY',players});f.start();f.send(f.host,'house:bid',{amount:50});f.advance(22000);return f;

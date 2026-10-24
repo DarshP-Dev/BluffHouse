@@ -77,6 +77,8 @@ Slice 5 passed type checking, all 276 unit/integration tests, the production bui
 
 Slice 6 adds timed Connect 4 and Bullet Chess to the same funded duel flow. Type checking, all 342 unit/integration tests, the production build, and the board/Classic browser journeys pass. A combined board/RPS/Coin/Classic run passed six browser tests; the final board and Classic run passed four after clock fixes. The board rules and material-policy limits are documented below.
 
+Slice 7 adds House overthrow ballots after one completed House round. The voter list stays fixed; 75% rounded up must vote Yes within ten seconds (capped by social admission). A connected affirmative voter is selected at random, and the House gets eight seconds to choose a zero-stake Last Stand game. Challenger victory transfers the crown and future commissions; a House win or draw retains it. Selection timeout forfeits to the connected selected challenger. Each interval allows one ballot and one accepted contest. Type checking, all 379 unit/integration tests, the build, and five overthrow/Classic browser tests pass.
+
 Rooms and guest credentials live in server memory. Restarting the backend loses them; the browser must show an unavailable-match recovery path, never silently insert new chips into a lost match. This is a local proof of concept, not durable account storage. The learner authorized normal fast-forward pushes of verified completed slices after inspecting their exact commits and private-file exclusions. Deployment and purchases require separate authorization. Keep the private learner profile and local credentials out of Git.
 
 ## Board duel rules

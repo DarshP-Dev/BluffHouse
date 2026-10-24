@@ -126,6 +126,7 @@ function envelope(type: CommandType, payload?: Record<string, unknown>, context?
       socialId: room.party?.social?.id, duelId: room.party?.social?.duel?.id,
       throwId: room.party?.social?.duel?.throwId,
       moveId: room.party?.social?.duel?.connect4?.moveId ?? room.party?.social?.duel?.chess?.moveId,
+      ballotId: room.party?.social?.ballot?.id,
     }),
     ...context,
   };
