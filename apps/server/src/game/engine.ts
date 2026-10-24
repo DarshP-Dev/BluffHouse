@@ -1,11 +1,12 @@
 import {RULES,validAmount,type Command,type MatchResults} from '@bluff-house/shared';
-import {account,assertAccount,available,reserve,release,commit,settle} from './ledger.js';
+import {account,assertAccount,reserve,release,commit,settle} from './ledger.js';
 import {evaluate} from './cards.js';
 import {payout,dealerShouldHit} from './blackjack.js';
 import {offerBluff,acceptBluff,cancelBluff} from './bluff.js';
 import {startAuction,closeAuction,submitBid,payCommission,distributeVault} from './house.js';
 import {openSocial,duelCommand,socialDeadline,closeSocial,assertDuels} from './duels.js';
 import {overthrowCommand} from './overthrow.js';
+import {grantChaos,resetChaosRound,chaosCommand,openPotTwist,closePotTwist,clearWagerEffect,assertChaos,canAffordNextRound} from './chaos.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -23,6 +24,7 @@ export function active(r:Room):Player {const p=r.players.find(p=>p.id===r.active
 export function draw(r:Room){const card=r.shoe[r.cursor];requireRule(card,'SHOE_EXHAUSTED');r.cursor++;return card;}
 export function startRound(r:Room,e:EngineOptions,now:number){
   r.round++;r.roundId=e.id();r.bettingId=e.id();r.phase='BETTING';r.deadline=now+RULES.bettingMs;
+  resetChaosRound(r);
   r.roundPayouts=[];
   r.decisionId=undefined;r.activePlayerId=undefined;r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.bluff=null;
   for(const p of r.players){p.hand=[];p.status=p.participating?'waiting':'observer';p.wager=0;p.wagerId=undefined;p.bluffUsed=false;}
@@ -50,7 +52,7 @@ export function finishHit(r:Room,e:EngineOptions,now:number){
 export function settleRound(r:Room,e:EngineOptions,now:number){
   r.dealerRevealed=true;
   for(const p of [...r.players].sort((a,b)=>a.seat-b.seat)){if(!p.wagerId||!p.wager)continue;
-    const result=payout(p.hand,r.dealer,p.wager);
+    const result=payout(p.hand,r.dealer,p.wager,r.mode==='PARTY'?750:250);
     if(settle(p.account,p.wagerId,result.returned)){
       r.dealerNet+=result.returned-p.wager;p.status=result.outcome;
       const houseCommission=payCommission(r,p,result.profit);r.roundPayouts.push({playerId:p.id,stake:p.wager,returned:result.returned,profit:result.profit,houseCommission});
@@ -59,6 +61,7 @@ export function settleRound(r:Room,e:EngineOptions,now:number){
     }
   }
   r.phase='ROUND_RESULT';r.deadline=now+RULES.resultMs;r.activePlayerId=undefined;r.decisionId=undefined;
+  grantChaos(r,e,now);
 }
 export function results(r:Room,e:EngineOptions,now:number,reason?:string){
   closeSocial(r);
@@ -72,22 +75,24 @@ export function roundBoundary(r:Room,e:EngineOptions,now:number){
   if(r.terminationConfirmed){results(r,e,now,'Too few connected players after the recovery window.');return;}
   if(r.round>=RULES.rounds){results(r,e,now);return;}
   if(connected(r).length<2){r.phase='WAITING_FOR_PLAYERS';r.deadline=null;return;}
-  if(connected(r).filter(p=>available(p.account)>=50).length<2){results(r,e,now,'Fewer than two connected players can afford the minimum wager.');return;}
+  if(!canAffordNextRound(r)){results(r,e,now,'Fewer than two connected players can afford the minimum wager.');return;}
   if(r.party&&r.round>0&&r.party.socialRound<r.round){openSocial(r,e,now);return;}
   startRound(r,e,now);
+}
+function commitBetsAndDeal(r:Room,e:EngineOptions,at:number){
+  let wagers=0;
+  for(const p of r.players){if(p.wagerId&&p.wager){commit(p.account,p.wagerId);p.status='playing';wagers++;}else p.status=p.participating?'skipped':'observer';}
+  if(!wagers){addEvent(r,e,'round','No wagers were placed.',at);settleRound(r,e,at);return;}
+  r.shoe=e.shoe();r.cursor=0;
+  for(let pass=0;pass<2;pass++){for(const p of r.players)if(p.status==='playing')p.hand.push(draw(r));r.dealer.push(draw(r));}
+  r.phase='DEALING';r.deadline=at+RULES.dealingMs;
 }
 export function deadlineTransition(r:Room,e:EngineOptions,at:number){
   switch(r.phase){
     case 'HOUSE_AUCTION': closeAuction(r,e);r.phase='HOUSE_REVEAL';r.deadline=at+RULES.revealMs;addEvent(r,e,'house',r.party!.houseId?`${r.players.find(p=>p.id===r.party!.houseId)!.name} becomes the House. ${r.party!.auction.winningBid} chips enter the Vault.`:'Everyone passed. No House this match.',at);break;
     case 'HOUSE_REVEAL': roundBoundary(r,e,at);break;
-    case 'BETTING': {
-      let wagers=0;
-      for(const p of r.players){if(p.wagerId&&p.wager){commit(p.account,p.wagerId);p.status='playing';wagers++;}else p.status=p.participating?'skipped':'observer';}
-      if(!wagers){addEvent(r,e,'round','No wagers were placed.',at);settleRound(r,e,at);break;}
-      r.shoe=e.shoe();r.cursor=0;
-      for(let pass=0;pass<2;pass++){for(const p of r.players)if(p.status==='playing')p.hand.push(draw(r));r.dealer.push(draw(r));}
-      r.phase='DEALING';r.deadline=at+RULES.dealingMs;break;
-    }
+    case 'BETTING': if(!openPotTwist(r,at))commitBetsAndDeal(r,e,at);break;
+    case 'POT_TWIST': closePotTwist(r);commitBetsAndDeal(r,e,at);break;
     case 'DEALING': {
       for(const p of r.players)if(p.hand.length&&evaluate(p.hand).natural)p.status='natural';
       if(evaluate(r.dealer).natural)settleRound(r,e,at);else nextTurn(r,e,at);break;
@@ -103,6 +108,7 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
 }
 export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   switch(c.type){
+    case 'chaos:activate':case 'chaos:optin':chaosCommand(r,p,c,e,now);break;
     case 'house:ballot':case 'house:vote':case 'house:choose':overthrowCommand(r,p,c,e,now);break;
     case 'duel:invite':case 'duel:reject':case 'duel:accept':case 'duel:choose':case 'duel:move':case 'duel:resign':duelCommand(r,p,c,e,now);break;
     case 'house:bid': submitBid(r,p,c);break;
@@ -114,6 +120,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
     case 'bet:submit': case 'bet:withdraw': {
       requireRule(r.phase==='BETTING'&&c.bettingId===r.bettingId,'STALE_BETTING','Betting is closed or this round has changed.');
       requireRule(p.participating,'NOT_PARTICIPATING');
+      clearWagerEffect(r,p);
       if(c.type==='bet:submit'){const amount=c.payload?.amount;requireRule(validAmount(amount),'INVALID_AMOUNT','Choose 50–250 chips in steps of 50.');const id=p.wagerId??`${r.roundId}:${p.id}:blackjack`;reserve(p.account,id,amount);p.wagerId=id;p.wager=amount;}
       else {if(p.wagerId)release(p.account,p.wagerId);p.wager=0;p.wagerId=undefined;}
       break;
@@ -127,6 +134,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
   }
 }
 export function assertRoom(r:Room){
+  assertChaos(r);
   assertDuels(r);
   let total=0;
   for(const p of r.players){assertAccount(p.account);if(p.participating)total+=p.account.balance+Object.values(p.account.escrows).reduce((a,b)=>a+b,0);}

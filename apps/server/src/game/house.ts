@@ -6,7 +6,7 @@ const bidKey=(r:Room,p:Player)=>`${r.matchId}:${r.party!.auction.id}:${p.id}:hou
 
 export function startAuction(r:Room,e:EngineOptions,now:number){
   const initialBonusReserve=r.players.filter(p=>p.participating).length*100;
-  r.party={houseId:null,houseSinceRound:0,overthrowHistory:[],vault:0,bonusReserve:initialBonusReserve,initialBonusReserve,vaultDistributed:false,transfers:[],social:null,socialRound:0,duelHistory:[],auction:{id:e.id(),deadline:now+20000,status:'open',bids:{},winnerId:null,winningBid:null}};
+  r.party={houseId:null,houseSinceRound:0,overthrowHistory:[],vault:0,bonusReserve:initialBonusReserve,initialBonusReserve,vaultDistributed:false,transfers:[],social:null,socialRound:0,duelHistory:[],chaos:{inventories:{},usedRound:{},emergencyUsed:[],grantedRounds:[],multipliers:{},potTwist:null},auction:{id:e.id(),deadline:now+20000,status:'open',bids:{},winnerId:null,winningBid:null}};
   r.phase='HOUSE_AUCTION';r.deadline=r.party.auction.deadline;r.roundId=undefined;r.bettingId=undefined;r.decisionId=undefined;r.activePlayerId=undefined;
   for(const p of r.players)p.status=p.participating?'waiting':'observer';
 }

@@ -2,6 +2,7 @@ import {type RoomView,type DuelView,type PartyView} from '@bluff-house/shared';
 import {evaluate} from './game/cards.js';
 import {available,reserved} from './game/ledger.js';
 import type {Room,DuelState} from './game/state.js';
+import {projectChaos} from './game/chaos.js';
 
 function duelView(d:DuelState,viewerId:string):DuelView {
   // Current simultaneous choices are private; completed throws are public.
@@ -12,6 +13,7 @@ function partyView(r:Room,viewerId:string,sealed:boolean):PartyView|null {
   const party=r.party;if(!party)return null;
   return {
     houseId:party.houseId,houseSinceRound:party.houseSinceRound,overthrowHistory:structuredClone(party.overthrowHistory),
+    chaos:projectChaos(r,viewerId),
     vault:party.vault,bonusReserve:party.bonusReserve,initialBonusReserve:party.initialBonusReserve,transfers:party.transfers.map(t=>({...t})),
     auction:{id:party.auction.id,deadline:party.auction.deadline,status:party.auction.status,winnerId:party.auction.winnerId,winningBid:party.auction.winningBid,bids:r.players.filter(p=>p.participating).map(p=>({playerId:p.id,submitted:Object.hasOwn(party.auction.bids,p.id),...(!sealed||p.id===viewerId?{amount:party.auction.bids[p.id]??0}:{})}))},
     social:party.social?{id:party.social.id,openedAt:party.social.openedAt,admissionDeadline:party.social.admissionDeadline,hardDeadline:party.social.hardDeadline,invites:party.social.invites.map(i=>({...i})),duel:party.social.duel?duelView(party.social.duel,viewerId):null,ballot:party.social.ballot?structuredClone(party.social.ballot):null}:null,
@@ -24,7 +26,7 @@ export function project(r:Room,viewerId:string,serverInstanceId:string,now:numbe
   const sealed=r.phase==='HOUSE_AUCTION';
   return {serverInstanceId,instanceId:r.instanceId,code:r.code,revision:r.revision,lobbyId:r.lobbyId,viewerId,hostId:r.hostId,phase:r.phase,mode:r.mode,roundPayouts:r.roundPayouts.map(p=>({...p})),
     party:partyView(r,viewerId,sealed),
-    players:r.players.map(p=>({id:p.id,name:p.name,seat:p.seat,connected:p.connected,departed:p.departed,ready:p.ready,balance:p.account.balance,reserved:sealed&&p.id!==viewerId?0:reserved(p.account),available:sealed&&p.id!==viewerId?p.account.balance:available(p.account),committed:Object.values(p.account.escrows).reduce((a,b)=>a+b,0),hand:p.hand.map(c=>({...c})),value:p.hand.length?evaluate(p.hand):null,status:p.status,bluffUsed:p.bluffUsed,bluffWins:p.bluffWins,bluffLosses:p.bluffLosses})),
+    players:r.players.map(p=>({id:p.id,name:p.name,seat:p.seat,connected:p.connected,departed:p.departed,ready:p.ready,balance:p.account.balance,reserved:sealed&&p.id!==viewerId?0:reserved(p.account),available:sealed&&p.id!==viewerId?p.account.balance:available(p.account),committed:Object.values(p.account.escrows).reduce((a,b)=>a+b,0),wager:p.wager,hand:p.hand.map(c=>({...c})),value:p.hand.length?evaluate(p.hand):null,status:p.status,bluffUsed:p.bluffUsed,bluffWins:p.bluffWins,bluffLosses:p.bluffLosses})),
     matchId:r.matchId,roundId:r.roundId,round:r.round,deadline:r.deadline,serverTime:now,
     decisionId:r.activePlayerId===viewerId?r.decisionId:undefined,bettingId:r.bettingId,activePlayerId:r.activePlayerId,
     dealer:r.dealer.map((c,i)=>i===0||r.dealerRevealed?{...c}:null),dealerValue:r.dealerRevealed&&r.dealer.length?evaluate(r.dealer):null,

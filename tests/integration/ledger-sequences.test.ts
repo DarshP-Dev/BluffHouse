@@ -4,6 +4,17 @@ import {assertRoom} from '../../apps/server/src/game/engine.js';
 import {fixture} from '../fixtures/core.js';
 
 describe('conserved whole-match Party ledger sequences',()=>{
+  it('conserves multiplied natural returns, optional Pot Twist, finite reserve awards and the final Vault in one completed match',()=>{
+    const f=fixture({mode:'PARTY',players:3,ranks:['10','A','10','10','7','K','8','7']});f.start();expect(f.send(f.host,'house:bid',{amount:100}).status).toBe('ok');f.advance(22000);
+    const inject=(seat:number,kind:'TRIPLE_DOWN'|'POT_TWIST'|'EMERGENCY_FUND')=>{const id=`sequence-${f.view().round}-${seat}-${kind}`;f.room().party!.chaos.inventories[f.actors[seat]!]=[{id,kind}];return id;};
+    const finish=()=>{for(let n=0;n<30&&f.view().phase!=='ROUND_RESULT';n++){const v=f.view();if(v.phase==='PLAYER_TURN')expect(f.send(v.activePlayerId!,'turn:stand').status).toBe('ok');else f.advance(v.deadline!-v.serverTime);assertRoom(f.room());}expect(f.view().phase).toBe('ROUND_RESULT');};
+    f.bet(100);expect(f.send(f.actors[1]!,'chaos:activate',{cardId:inject(1,'TRIPLE_DOWN')}).status).toBe('ok');f.deal();finish();expect(f.view().players.map(p=>p.balance)).toEqual([916,1450,1100]);expect(f.room().dealerNet).toBe(566);f.advance(RULES.resultMs+20000);
+    expect(f.view()).toMatchObject({phase:'BETTING',round:2});expect(f.send(f.host,'chaos:activate',{cardId:inject(0,'EMERGENCY_FUND')}).status).toBe('ok');expect(f.view().party!.bonusReserve).toBe(200);
+    f.bet(100);expect(f.send(f.actors[1]!,'bet:submit',{amount:200}).status).toBe('ok');expect(f.send(f.actors[1]!,'chaos:activate',{cardId:inject(1,'POT_TWIST')}).status).toBe('ok');f.advance(RULES.bettingMs);expect(f.view().phase).toBe('POT_TWIST');const opt=f.command(f.actors[1]!,'chaos:optin'),ack=f.manager.command(f.actors[1]!,opt);expect(ack.status).toBe('ok');expect(f.send(f.actors[2]!,'chaos:optin').status).toBe('ok');f.advance(5000+RULES.dealingMs);finish();
+    expect(f.view().players.map(p=>p.balance)).toEqual([1040,2050,1300]);expect(f.room().dealerNet).toBe(1390);f.advance(RULES.resultMs+20000);f.advance(RULES.bettingMs+RULES.resultMs);
+    expect(f.view().phase).toBe('RESULTS');expect(f.view().players.map(p=>p.balance)).toEqual([1074,2083,1333]);expect(f.view().party).toMatchObject({vault:0,bonusReserve:200});expect(f.view().party!.transfers.filter(t=>t.kind==='bonus')).toHaveLength(1);expect(f.room().players.flatMap(p=>Object.values(p.account.reservations))).toEqual([]);expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);assertRoom(f.room());
+    const before=structuredClone(f.room());expect(f.manager.command(f.actors[1]!,opt)).toEqual(ack);expect(f.room()).toEqual(before);expect(f.send(f.host,'results:return').status).toBe('ok');f.start();expect(f.view().party!.chaos.inventories.every(p=>p.cards.length===0)).toBe(true);expect(f.view().party!.chaos).toMatchObject({emergencyUsed:false,usedThisRound:false,potTwist:null,multipliers:[]});expect(f.view().party!.bonusReserve).toBe(300);
+  });
   it('accounts for auction funding, full Blackjack returns, bank commission, two duels and final Vault distribution exactly once',()=>{
     const f=fixture({mode:'PARTY',players:3,ranks:['10','10','10','10','8','9','10','7']});f.start();f.send(f.host,'house:bid',{amount:300});f.advance(22000);f.bet();f.deal();
     for(let step=0;step<20&&f.view().phase!=='ROUND_RESULT';step++){

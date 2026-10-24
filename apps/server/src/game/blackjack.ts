@@ -1,4 +1,4 @@
-import { validAmount, type Card } from '@bluff-house/shared';
+import { type Card } from '@bluff-house/shared';
 import { evaluate } from './cards.js';
 
 export interface Payout {
@@ -7,8 +7,8 @@ export interface Payout {
   outcome: 'blackjack' | 'win' | 'push' | 'loss';
 }
 
-export function payout(hand: Card[], dealer: Card[], stake: number): Payout {
-  if (!validAmount(stake)) throw new Error('INVALID_WAGER_AMOUNT');
+export function payout(hand: Card[], dealer: Card[], stake: number, maximum=250): Payout {
+  if (!Number.isSafeInteger(stake)||stake<50||stake>maximum||stake%50!==0||!Number.isSafeInteger(maximum)||maximum<50||maximum>750) throw new Error('INVALID_WAGER_AMOUNT');
   if (hand.length < 2 || dealer.length < 2) throw new Error('INCOMPLETE_HAND');
   const playerValue = evaluate(hand);
   const dealerValue = evaluate(dealer);

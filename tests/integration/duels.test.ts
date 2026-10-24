@@ -8,7 +8,7 @@ import {fixture} from '../fixtures/core.js';
 type F=ReturnType<typeof fixture>;
 function social(players=3,randomIndex:(length:number)=>number=()=>0){
   const f=fixture({mode:'PARTY',players,randomIndex});f.start();f.advance(22000);f.advance(RULES.bettingMs+RULES.resultMs);
-  expect(f.view().phase).toBe('SOCIAL');expect(f.view().round).toBe(1);return f;
+  expect(f.view().phase).toBe('SOCIAL');expect(f.view().round).toBe(1);if(vi.isMockFunction(randomIndex))randomIndex.mockClear();return f;
 }
 function invite(f:F,from=0,to=1,amount=100){expect(f.send(f.actors[from]!,'duel:invite',{defenderId:f.actors[to],amount}).status).toBe('ok');return f.view().party!.social!.invites.at(-1)!;}
 function accept(f:F,id:string,defender=1,game:DuelGame='RPS',coinSide:CoinSide='HEADS'){
