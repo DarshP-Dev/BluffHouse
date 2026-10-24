@@ -162,7 +162,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: Invite another player, select each game as defender, watch from a third profile, and confirm that the next Blackjack round resumes with the real settled stacks.
   Commit: `feat: add funded RPS and Coin Flip duels`
 
-- [ ] **6. Play timed Connect 4 and Bullet Chess duels**
+- [x] **6. Play timed Connect 4 and Bullet Chess duels**
   Becomes usable: Two complete board minigames share the same real invitation, escrow, spectator, and result flow.
   Why now: Depends on slice 5; reuse the contest engine while isolating legal-move and clock complexity before House ownership depends on it.
   PRD ref: `prd.md > Deferred From the POC`; `vision.md > 3. Fast-Paced 1v1 Duels`; proposed `Direct duels and minigames` rules.
@@ -376,6 +376,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run typecheck` passed. Required Connect 4/chess/duel focused tests passed **98 / 3 files**. `npm test` passed **342 tests / 18 files**. Cases include malformed/illegal/stale/duplicate moves, exact timeouts, secure assignment, private implementation-field exclusion, fractional production clocks, frozen resignation clocks, disconnected players, material-aware flags, full-history repetition and conserved pots.
 - Production build passed. Combined board/duel/Classic browser verification passed **6 tests**. After final clock/rules changes, `npm run test:e2e -- tests/e2e/board-duels.spec.ts tests/e2e/match.spec.ts` passed **4 tests**. Four guests play real vertical Connect 4 and keyboard-completed chess checkmate, refresh without extending deadlines, observe matching boards/payouts, resume Blackjack and reach settled results. Additional browser checks exercise move expiry and flag fall across reconnect. Both Classic bluff outcomes remain passing.
 - Inspected Connect 4 mobile, chess mobile and desktop checkmate screenshots; no horizontal overflow. Physical second-device LAN confirmation remains pending. No deployment or purchase occurred.
+- Verified implementation commit: `49a6086`. Next slice: House tenure, overthrow ballots and a real Last Stand duel.
 
 ## Revisions
 
