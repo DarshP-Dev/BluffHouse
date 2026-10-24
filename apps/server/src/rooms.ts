@@ -7,9 +7,9 @@ import {addEvent,assertRoom,connected,createRoom,deadlineTransition,gameCommand,
 import {project} from './projection.js';
 import {cancelBluff} from './game/bluff.js';
 
-const TYPES:CommandType[]=['room:create','room:join','lobby:ready','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
-const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','payload'];
-const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
+const TYPES:CommandType[]=['room:create','room:join','lobby:ready','lobby:mode','house:bid','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
+const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','auctionId','payload'];
+const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'house:bid':['amount'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
 function canonical(value:unknown):string {if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;if(value&&typeof value==='object')return `{${Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical((value as Record<string,unknown>)[k])).join(',')}}`;return JSON.stringify(value);}
 export function validateCommand(raw:unknown):Command {
   requireRule(raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_REQUEST');
@@ -29,7 +29,7 @@ export class RoomManager {
   onChange:(room:Room)=>void=()=>{};
   onReaction:(room:Room,event:TableEvent)=>void=()=>{};
   onClose:(room:Room)=>void=()=>{};
-  constructor(readonly instanceId:string,options:Partial<EngineOptions>={},readonly maxRooms=20){this.e={now:options.now??(()=>Date.now()),id:options.id??randomUUID,shoe:options.shoe??makeShoe};}
+  constructor(readonly instanceId:string,options:Partial<EngineOptions>={},readonly maxRooms=20){this.e={now:options.now??(()=>Date.now()),id:options.id??randomUUID,shoe:options.shoe??makeShoe,randomIndex:options.randomIndex??(length=>randomInt(length))};}
   roomFor(id:string){return this.rooms.get(this.membership.get(id)??'');}
   snapshot(id:string):RoomView|null{const r=this.roomFor(id);return r?project(r,id,this.instanceId,this.e.now()):null;}
   private commit(previous:Room,candidate:Room){assertRoom(candidate);candidate.revision=previous.revision+1;this.rooms.set(candidate.instanceId,candidate);this.onChange(candidate);}
@@ -96,6 +96,12 @@ export class RoomManager {
           else requireRule(command.matchId===d.matchId,'STALE_MATCH');
           const now=this.e.now();
           switch(command.type){
+            case 'lobby:mode':{
+              requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');
+              const mode=command.payload?.mode;requireRule(mode==='CLASSIC'||mode==='PARTY','INVALID_MODE');
+              if(d.mode!==mode){d.mode=mode;d.lobbyId=this.e.id();for(const player of d.players)player.ready=false;addEvent(d,this.e,'mode',`${mode==='PARTY'?'Party':'Classic'} selected. Everyone must ready up again.`,now);}
+              break;
+            }
             case 'lobby:ready':requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(typeof command.payload?.ready==='boolean','INVALID_READY');p.ready=command.payload.ready;break;
             case 'match:start':requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');startMatch(d,this.e,now);break;
             case 'room:leave':
@@ -108,6 +114,7 @@ export class RoomManager {
               // Archive economic records outside the reset gameplay state.
               d.phase='LOBBY';d.lobbyId=this.e.id();d.matchId=undefined;d.roundId=undefined;d.round=0;d.initialChips=0;d.dealerNet=0;d.shoe=[];d.cursor=0;d.dealer=[];d.dealerRevealed=false;d.deadline=null;d.decisionId=undefined;d.bettingId=undefined;d.bluff=null;d.biggestBluff=null;d.bluffOutcomes=[];d.results=null;d.resultsSince=null;d.recoveryDeadline=null;d.terminationConfirmed=false;
               d.players=d.players.filter(p=>!p.departed);for(const player of d.players){player.account=account();player.hand=[];player.wager=0;player.wagerId=undefined;player.status='waiting';player.ready=false;player.participating=false;player.bluffUsed=false;player.bluffWins=0;player.bluffLosses=0;if(!player.connected)player.disconnectedAt=now;}
+              d.party=null;d.roundPayouts=[];
               d.hostDeadline=null;this.presenceRules(d,now);addEvent(d,this.e,'lobby','Back at the table. Ready up for a fresh match.',now);break;
             }
             default:requireRule(command.roundId===d.roundId,'STALE_ROUND');gameCommand(d,p,command,this.e,now);

@@ -6,22 +6,23 @@ export function shoe(ranks:Rank[]=['5','6','10','5','6','7','2','3','4','10','9'
   return [...ranks,...Array<Rank>(80).fill('10')].map((rank,index)=>({id:`test-card-${index}`,rank,suit:'S'}));
 }
 
-export function fixture(options:{players?:number;ranks?:Rank[];maxRooms?:number}={}) {
+export function fixture(options:{players?:number;ranks?:Rank[];maxRooms?:number;mode?:'CLASSIC'|'PARTY';randomIndex?:(length:number)=>number}={}) {
   let now=1000,serial=0,requests=0;
-  const manager=new RoomManager('test-server',{now:()=>now,id:()=>`entity-${++serial}`,shoe:()=>shoe(options.ranks)},options.maxRooms);
+  const manager=new RoomManager('test-server',{now:()=>now,id:()=>`entity-${++serial}`,shoe:()=>shoe(options.ranks),randomIndex:options.randomIndex??(()=>0)},options.maxRooms);
   const actors=Array.from({length:options.players??2},(_,i)=>`player-${i+1}`);
   const host=actors[0]!;
   const view=(actor=host)=>manager.snapshot(actor)!;
   const room=()=>manager.roomFor(host)!;
   const command=(actor:string,type:CommandType,payload?:Record<string,unknown>,extra:Partial<Command>={}):Command=>{
     const state=manager.snapshot(actor);
-    return {requestId:`request-${++requests}`,type,...(state?{roomInstanceId:state.instanceId,lobbyId:state.lobbyId,matchId:state.matchId,roundId:state.roundId,decisionId:state.decisionId,bettingId:state.bettingId,offerId:state.bluff?.id}:{}),...(payload?{payload}:{}),...extra};
+    return {requestId:`request-${++requests}`,type,...(state?{roomInstanceId:state.instanceId,lobbyId:state.lobbyId,matchId:state.matchId,roundId:state.roundId,decisionId:state.decisionId,bettingId:state.bettingId,offerId:state.bluff?.id,auctionId:state.party?.auction.id}:{}),...(payload?{payload}:{}),...extra};
   };
   const send=(actor:string,type:CommandType,payload?:Record<string,unknown>,extra:Partial<Command>={})=>manager.command(actor,command(actor,type,payload,extra));
   for(const [i,actor] of actors.entries()){
     const result=send(actor,i===0?'room:create':'room:join',{username:`Player ${i+1}`,...(i?{roomCode:view().code}:{})});
     if(result.status!=='ok')throw new Error(`Fixture entry failed: ${result.code}`);
   }
+  if(options.mode){const result=send(host,'lobby:mode',{mode:options.mode});if(result.status!=='ok')throw new Error(`Fixture mode failed: ${result.code}`);}
   const start=()=>{
     for(const actor of actors){const ready=send(actor,'lobby:ready',{ready:true});if(ready.status!=='ok')throw new Error(`Fixture ready failed: ${ready.code}`);}
     const result=send(host,'match:start');if(result.status!=='ok')throw new Error(`Fixture start failed: ${result.code}`);

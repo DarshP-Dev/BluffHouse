@@ -104,3 +104,12 @@ export function settle(a: Account, id: string, returned: number): boolean {
   a.settlements[id] = returned;
   return true;
 }
+
+/** A separately funded credit, with an identity distinct from wager settlement. */
+export function credit(a: Account, id: string, amount: number): boolean {
+  assertAccount(a);identifier(id);integer(amount);
+  if(Object.hasOwn(a.settlements,id))return false;
+  if(Object.hasOwn(a.reservations,id)||Object.hasOwn(a.escrows,id))throw new Error('WAGER_STATUS_CONFLICT');
+  const balance=a.balance+amount;integer(balance);integer(balance+sum(a.escrows));
+  a.balance=balance;a.settlements[id]=amount;return true;
+}

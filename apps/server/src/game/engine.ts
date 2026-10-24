@@ -3,6 +3,7 @@ import {account,assertAccount,available,reserve,release,commit,settle} from './l
 import {evaluate} from './cards.js';
 import {payout,dealerShouldHit} from './blackjack.js';
 import {offerBluff,acceptBluff,cancelBluff} from './bluff.js';
+import {startAuction,closeAuction,submitBid,payCommission,distributeVault} from './house.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -13,13 +14,14 @@ export function makePlayer(id:string,name:string,seat:number,now:number):Player 
   return {id,name,seat,joinedAt:now,connected:true,departed:false,ready:false,disconnectedAt:null,account:account(),hand:[],status:'waiting',wager:0,participating:false,bluffUsed:false,bluffWins:0,bluffLosses:0};
 }
 export function createRoom(code:string,player:Player,e:EngineOptions):Room {
-  return {instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
+  return {mode:'CLASSIC',party:null,roundPayouts:[],instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
 }
 export function connected(r:Room){return r.players.filter(p=>p.connected&&!p.departed&&(r.phase==='LOBBY'||p.participating));}
 export function active(r:Room):Player {const p=r.players.find(p=>p.id===r.activePlayerId);requireRule(p,'NO_ACTIVE_PLAYER');return p;}
 export function draw(r:Room){const card=r.shoe[r.cursor];requireRule(card,'SHOE_EXHAUSTED');r.cursor++;return card;}
 export function startRound(r:Room,e:EngineOptions,now:number){
   r.round++;r.roundId=e.id();r.bettingId=e.id();r.phase='BETTING';r.deadline=now+RULES.bettingMs;
+  r.roundPayouts=[];
   r.decisionId=undefined;r.activePlayerId=undefined;r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.bluff=null;
   for(const p of r.players){p.hand=[];p.status=p.participating?'waiting':'observer';p.wager=0;p.wagerId=undefined;p.bluffUsed=false;}
   addEvent(r,e,'round',`Round ${r.round} · Place your wagers`,now);
@@ -30,7 +32,8 @@ export function startMatch(r:Room,e:EngineOptions,now:number){
   r.matchId=e.id();r.round=0;r.initialChips=players.length*RULES.startingChips;r.dealerNet=0;r.results=null;r.resultsSince=null;r.biggestBluff=null;r.bluffOutcomes=[];r.terminationConfirmed=false;r.recoveryDeadline=null;
   // Absent lobby guests are not participants in this new match.
   for(const p of r.players){p.participating=p.connected&&!p.departed;p.account=account();p.bluffWins=0;p.bluffLosses=0;}
-  startRound(r,e,now);
+  r.party=null;r.roundPayouts=[];
+  if(r.mode==='PARTY'){startAuction(r,e,now);addEvent(r,e,'house','The sealed House auction is open. Bids stay private until reveal.',now);}else startRound(r,e,now);
 }
 export function freshDecision(r:Room,e:EngineOptions,now:number,duration=RULES.decisionMs){r.phase='PLAYER_TURN';r.decisionId=e.id();r.deadline=now+duration;}
 export function nextTurn(r:Room,e:EngineOptions,now:number){
@@ -44,13 +47,19 @@ export function finishHit(r:Room,e:EngineOptions,now:number){
 }
 export function settleRound(r:Room,e:EngineOptions,now:number){
   r.dealerRevealed=true;
-  for(const p of r.players){if(!p.wagerId||!p.wager)continue;
+  for(const p of [...r.players].sort((a,b)=>a.seat-b.seat)){if(!p.wagerId||!p.wager)continue;
     const result=payout(p.hand,r.dealer,p.wager);
-    if(settle(p.account,p.wagerId,result.returned)){r.dealerNet+=result.returned-p.wager;p.status=result.outcome;addEvent(r,e,'settlement',`${p.name}: ${result.outcome} · ${result.profit>=0?'+':''}${result.profit} chips`,now,p.id);}
+    if(settle(p.account,p.wagerId,result.returned)){
+      r.dealerNet+=result.returned-p.wager;p.status=result.outcome;
+      const houseCommission=payCommission(r,p,result.profit);r.roundPayouts.push({playerId:p.id,stake:p.wager,returned:result.returned,profit:result.profit,houseCommission});
+      addEvent(r,e,'settlement',`${p.name}: ${result.outcome} · ${result.profit>=0?'+':''}${result.profit} chips`,now,p.id);
+      if(houseCommission)addEvent(r,e,'commission',`Dealer bank pays ${houseCommission} extra chips to the House. ${p.name} keeps the full ${result.returned}-chip return.`,now,r.party!.houseId!);
+    }
   }
   r.phase='ROUND_RESULT';r.deadline=now+RULES.resultMs;r.activePlayerId=undefined;r.decisionId=undefined;
 }
 export function results(r:Room,e:EngineOptions,now:number,reason?:string){
+  const vault=r.party?.vault??0;distributeVault(r);if(vault)addEvent(r,e,'vault',`The ${vault}-chip Vault is shared among all original participants, with remainder chips in seat order.`,now);
   const standings=r.players.filter(p=>p.participating).map(p=>({id:p.id,name:p.name,balance:p.account.balance,bluffWins:p.bluffWins,bluffLosses:p.bluffLosses})).sort((a,b)=>b.balance-a.balance);
   const result:MatchResults={reason,standings,winners:standings.filter(p=>p.balance===standings[0]?.balance).map(p=>p.id),biggestBluff:r.biggestBluff};
   r.results=result;r.phase='RESULTS';r.deadline=null;r.recoveryDeadline=null;r.resultsSince=now;r.activePlayerId=undefined;r.decisionId=undefined;
@@ -65,6 +74,8 @@ export function roundBoundary(r:Room,e:EngineOptions,now:number){
 }
 export function deadlineTransition(r:Room,e:EngineOptions,at:number){
   switch(r.phase){
+    case 'HOUSE_AUCTION': closeAuction(r,e);r.phase='HOUSE_REVEAL';r.deadline=at+RULES.revealMs;addEvent(r,e,'house',r.party!.houseId?`${r.players.find(p=>p.id===r.party!.houseId)!.name} becomes the House. ${r.party!.auction.winningBid} chips enter the Vault.`:'Everyone passed. No House this match.',at);break;
+    case 'HOUSE_REVEAL': roundBoundary(r,e,at);break;
     case 'BETTING': {
       let wagers=0;
       for(const p of r.players){if(p.wagerId&&p.wager){commit(p.account,p.wagerId);p.status='playing';wagers++;}else p.status=p.participating?'skipped':'observer';}
@@ -87,6 +98,7 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
 }
 export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   switch(c.type){
+    case 'house:bid': submitBid(r,p,c);break;
     case 'bluff:offer': offerBluff(r,p,c,e,now);addEvent(r,e,'bluff',`${p.name}: “My next hit won't bust.” ${r.bluff!.amount} chips to call.`,now,p.id);break;
     case 'bluff:accept': {
       acceptBluff(r,p,c,e,now);const winner=r.players.find(p=>p.id===r.bluff!.winnerId)!;
@@ -110,7 +122,12 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
 export function assertRoom(r:Room){
   let total=0;
   for(const p of r.players){assertAccount(p.account);if(p.participating)total+=p.account.balance+Object.values(p.account.escrows).reduce((a,b)=>a+b,0);}
-  if(r.matchId)requireRule(total===r.initialChips+r.dealerNet,'LEDGER_INVARIANT');
+  if(r.matchId)requireRule(total+(r.party?.vault??0)+(r.party?.bonusReserve??0)===r.initialChips+(r.party?.initialBonusReserve??0)+r.dealerNet,'LEDGER_INVARIANT');
+  if(r.party){
+    for(const amount of [r.party.vault,r.party.bonusReserve,r.party.initialBonusReserve])requireRule(Number.isSafeInteger(amount)&&amount>=0,'PARTY_LEDGER_INVARIANT');
+    requireRule(new Set(r.party.transfers.map(t=>t.id)).size===r.party.transfers.length,'DUPLICATE_PARTY_TRANSFER');
+    for(const t of r.party.transfers)requireRule(Number.isSafeInteger(t.amount)&&t.amount>=0,'INVALID_PARTY_TRANSFER');
+  }
   const dealt=r.players.flatMap(p=>p.hand).concat(r.dealer);requireRule(new Set(dealt.map(c=>c.id)).size===dealt.length,'DUPLICATE_CARD');
   requireRule(r.cursor===dealt.length,'DRAW_INVARIANT');
   requireRule(new Set(r.bluffOutcomes.map(o=>o.id)).size===r.bluffOutcomes.length,'DUPLICATE_BLUFF');

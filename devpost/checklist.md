@@ -348,6 +348,14 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - Final complete verification passed: `npm run typecheck`; `npm test` (**176 tests / 11 files**); `npm run test:e2e` including production build (**12 browser tests**). The interrupted approval-review operation did not modify documentation; resumed from preserved files and collected the completed test run successfully.
 - Stable verified Classic recovery commit: `f9e2729`. Initial hands-on feedback is resolved; physical cross-device LAN testing remains pending. Next implementation slice: sealed House auctions and funded commissions.
 
+### Slice 4 — mechanical verification complete
+
+- Added host-selected Party mode with readiness/context reset, a 20-second sealed auction, editable/withdrawable binding bids, secure highest-tie selection, public reveal, and a House role independent of host and dealer. Opponents' reservations and available balances cannot leak sealed amounts.
+- The winning bid funds the Vault once. Winner payouts remain full; additional dealer-bank commissions round down, exclude the House's own hand and peer pots, and allocate the 50-chip cap in original seat order. Final and early endings distribute the Vault to all original participants, including departed players; replay clears all Party state and preserves the selected mode.
+- `npm run typecheck` passed; `npm test` passed **225 tests / 13 files**, including 49 new House/credit tests. Tests include stale mode/auction contexts, deadline boundaries, disconnected bids, failed edit atomicity, tie/all-pass outcomes, 75-profit rounding, six-player commission cap, once-only credits, Vault remainders, and Classic payout regression.
+- `npm run test:e2e -- tests/e2e/house.spec.ts tests/e2e/match.spec.ts` passed **3 browser tests** with its production build. Four isolated guests bid, refresh privately, observe full returns and commissions, finish three rounds, receive funded Vault shares, and replay. Both surviving and busted Classic bluff journeys still pass. Mobile auction and desktop payout screenshots were inspected; 390px layout has no overflow.
+- The main compiled server was stopped before rebuilding to avoid serving mismatched old server/new client code. No separate testing worktree was edited. Physical cross-device LAN verification remains pending; no deployment or purchase occurred.
+
 ## Revisions
 
 - Learner approved the 17-slice structure with bank-funded House commissions capped at 50 per round, specific Shadow Draw declarations that permit successful busted bluffs to win, and a verified attempt at two sequential social contests in six-round Party. Classic behavior is unchanged.

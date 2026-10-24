@@ -544,3 +544,31 @@ button { transition: background .16s, border-color .16s, transform .16s, box-sha
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+:root { --party-gold: #d4b06c; }
+.mode-controls { display: flex; gap: 8px; margin: 20px 0 12px; }
+.mode-controls .button { flex: 1; min-width: 0; padding: 12px; }
+.party-description { padding: 12px; border-left: 2px solid var(--party-gold); }
+.party-bank { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 20px 24px; margin-bottom: 22px; border: 1px solid #655032; border-radius: 12px; background: #201d16; }
+.party-bank > div { display: flex; flex-direction: column; gap: 6px; }
+.party-bank strong { color: #f4e7cd; font-size: 20px; }
+.party-bank small { color: #b7ad99; font-size: 12px; }
+.house-auction, .round-payouts, .vault-distribution { padding: 24px; margin-bottom: 20px; border: 1px solid #655032; border-radius: 14px; background: #211d17; }
+.house-auction h2, .round-payouts h2, .vault-distribution h2 { margin: 10px 0; font-size: 28px; font-weight: 500; }
+.house-auction > p, .vault-distribution > p { color: #b7ad99; font-size: 14px; line-height: 1.6; }
+.auction-bids { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px 0; }
+.auction-bid { display: flex; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 8px; background: #151a17; font-size: 14px; }
+.auction-bid span { color: var(--party-gold); }
+.auction-bid small { font-size: 9px; color: var(--party-gold); margin-left: 6px; }
+.auction-own { margin-bottom: 16px; font-size: 14px; }
+.auction-own strong, .house-crown { color: var(--party-gold); }
+.payout-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid #ffffff12; font-size: 14px; }
+.payout-row small { color: #b7ad99; }
+.payout-row .commission { grid-column: 1 / -1; color: var(--party-gold); font-size: 12px; }
+.vault-distribution { max-width: 760px; margin: 24px auto; text-align: left; }
+@media (max-width: 620px) {
+  .party-bank { grid-template-columns: 1fr; gap: 16px; padding: 18px; }
+  .house-auction, .round-payouts, .vault-distribution { padding: 18px; }
+  .auction-bids { grid-template-columns: 1fr; }
+  .house-auction .bet-controls { align-items: stretch; }
+  .house-auction .bet-chips { flex-wrap: wrap; }
+}

@@ -122,7 +122,7 @@ function envelope(type: CommandType, payload?: Record<string, unknown>): Command
     ...(room && {
       roomInstanceId: room.instanceId, lobbyId: room.lobbyId, matchId: room.matchId,
       roundId: room.roundId, decisionId: room.decisionId, bettingId: room.bettingId,
-      offerId: room.bluff?.id,
+      offerId: room.bluff?.id, auctionId: room.party?.auction.id,
     }),
   };
 }
