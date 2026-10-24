@@ -222,7 +222,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: Negotiate a deal, lock different choices in two profiles, and compare revealed choices with the player stacks, bonus reserve, and Vault change.
   Commit: `feat: add funded Split-or-Steal contracts`
 
-- [ ] **12. Compete for the Vault through Shadow Draw**
+- [x] **12. Compete for the Vault through Shadow Draw**
   Becomes usable: Expanded matches end in a private-hand bluff contest with real risks, point outcomes, and a funded jackpot payout before final standings.
   Why now: Depends on the grown Vault, private snapshots, settled social commitments, and stable deadlines. Introduces deception only after public-card Classic remains verified.
   PRD ref: `prd.md > Possible Later Enhancements`, `Match Results`, `States and Boundaries`; `vision.md > 8. The Vault Finale`; proposed `Vault finale and Shadow Draw` rules.
@@ -436,7 +436,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run typecheck` passed. Required Vault/Shadow/projection/ledger verification passed **64 tests / 5 files**; `npm test` passed **689 tests / 30 files**. Evidence includes true-29/declared-21 uncalled victory and caught disqualification, exact truth/wrong-caller penalty and mandatory reveal, voluntary reveal, sequential multiple callers, stale/duplicate requests, exact and fractional clocks, card conservation, no-chip entry, fixed entry/late reconnect, all-viewer payload inspection, accepted disconnect/departure drainage, actual all-busted fallback, three-way remainders, causal badge counterfactuals, fallback configuration, once-only payouts and replay. A six-round mixed ledger funds the finale through auction and both-Steal pots, refunds bounty owners, awards the busted bluff and preserves exact totals.
 - Fresh production build and `npm run test:e2e -- tests/e2e/shadow.spec.ts tests/e2e/match.spec.ts` passed **4 browser tests**. Four isolated guests play a true-29 uncalled-21 win, refresh private claims, preserve the accepted 22-point score through final reveal, and see the funded award and replay. A second journey covers a House caller catching that lie, exact truth, wrong-caller penalty/mandatory reveal, voluntary reveal and disqualified-caller controls. Both Classic bluff journeys remain passing.
 - Final combined Shadow/Classic/House/deal/overthrow regression passed **11 browser tests** with a fresh build. Earlier Party tests explicitly select the documented finale-disabled fallback through the real lobby setting. Regression repaired the inherited selection-timeout result screen so invitation controls appear only during real admission, while the verified second-slot-after-Last-Stand path remains available. Inspected mobile private-claim and desktop busted-winner/scoring screenshots; no overflow. Final typecheck/build and focused projection/Shadow regression (**32 tests / 2 files**) passed after a projection readability cleanup.
-- Physical second-device LAN verification remains pending. No deployment or purchase occurred. Next slice: text chat, cosmetic profiles and authoritative session achievements.
+- Physical second-device LAN verification remains pending. No deployment or purchase occurred. Verified implementation commit: `b65b28b`. Next slice: text chat, cosmetic profiles and authoritative session achievements.
 
 ## Revisions
 
