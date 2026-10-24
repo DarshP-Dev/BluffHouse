@@ -4,6 +4,7 @@ import {requireRule,type Room,type Player,type EngineOptions,type DuelState} fro
 import {createConnect4,moveConnect4} from './connect4.js';
 import {createChess,moveChess,chessTimeout,restoreChess} from './chess.js';
 import {assertBallots,failBallot,overthrowDeadline,settleLastStand} from './overthrow.js';
+import {validateBountyDefense,acceptBountyDefense,settleBountyDefense} from './bounties.js';
 
 const ADMISSION_MS=20000,INVITE_MS=8000,PLAY_MS=60000,THROW_MS=8000,SUMMARY_MS=2000,SOCIAL_MS=90000;
 const stakeKey=(id:string,playerId:string)=>`${id}:${playerId}:duel`;
@@ -28,7 +29,7 @@ export function openSocial(r:Room,e:EngineOptions,now:number){
   requireRule(r.mode==='PARTY'&&r.party,'PARTY_REQUIRED');requireRule(!r.party.social,'SOCIAL_ALREADY_OPEN');
   requireRule(!r.terminationConfirmed&&participants(r).length>=2,'NOT_ENOUGH_PLAYERS');
   r.party.socialRound=r.round;
-  r.party.social={id:e.id(),openedAt:now,admissionDeadline:now+ADMISSION_MS,hardDeadline:now+SOCIAL_MS,invites:[],duel:null,ballot:null};
+  r.party.social={id:e.id(),slotId:e.id(),openedAt:now,slot:1,slotOpenedAt:now,admissionDeadline:now+ADMISSION_MS,hardDeadline:now+(r.roundLimit===6?SOCIAL_MS*2:SOCIAL_MS),invites:[],duel:null,ballot:null};
   r.phase='SOCIAL';r.deadline=now+ADMISSION_MS;r.activePlayerId=undefined;r.decisionId=undefined;
   event(r,e,'Social interval · Invite a player to a funded duel. The defender chooses the game.',now);
 }
@@ -47,6 +48,7 @@ function finishDuel(r:Room,d:DuelState,e:EngineOptions,now:number,winnerId:strin
   if(d.purpose!=='LAST_STAND')for(const p of [first,second])settle(p.account,stakeKey(d.id,p.id),winnerId?(p.id===winnerId?d.amount*2:0):d.amount);
   d.status='settled';d.winnerId=winnerId;d.reason=reason;d.throwId=undefined;d.choices={};
   d.deadline=Math.min(now,d.hardDeadline);
+  if(d.purpose==='BOUNTY')settleBountyDefense(r,d,e,now,winnerId);
   r.party!.duelHistory.push(structuredClone(d));
   r.phase='DUEL_RESULT';r.deadline=Math.min(now+SUMMARY_MS,r.party!.social!.hardDeadline);
   if(d.purpose==='LAST_STAND')settleLastStand(r,e,now,winnerId,reason);
@@ -69,10 +71,10 @@ function finishThrow(r:Room,d:DuelState,e:EngineOptions,now:number){
 }
 
 /** Both funded duels and crown-only Last Stands use the same rules and clocks. */
-export function startDuel(r:Room,e:EngineOptions,now:number,setup:Pick<DuelState,'id'|'game'|'inviterId'|'defenderId'|'amount'|'purpose'|'ballotId'>,coinSide?:'HEADS'|'TAILS'){
+export function startDuel(r:Room,e:EngineOptions,now:number,setup:Pick<DuelState,'id'|'game'|'inviterId'|'defenderId'|'amount'|'purpose'|'ballotId'|'bountyId'>,coinSide?:'HEADS'|'TAILS'){
   const social=r.party!.social!,{game,inviterId,defenderId}=setup;
   requireRule(!social.duel,'DUEL_ALREADY_STARTED');
-  const duel:DuelState={...setup,status:'playing',startedAt:now,hardDeadline:now+PLAY_MS,deadline:now+THROW_MS,throwNumber:game==='RPS'?1:0,scores:{[inviterId]:0,[defenderId]:0},choices:{},throws:[],winnerId:null};
+  const duel:DuelState={...setup,socialId:social.id,slot:social.slot,status:'playing',startedAt:now,hardDeadline:now+PLAY_MS,deadline:now+THROW_MS,throwNumber:game==='RPS'?1:0,scores:{[inviterId]:0,[defenderId]:0},choices:{},throws:[],winnerId:null};
   social.duel=duel;r.phase='DUEL';r.deadline=duel.deadline;
   if(duel.purpose==='LAST_STAND')event(r,e,`The House chooses ${gameName(duel)} for the zero-stake Last Stand.`,now,defenderId);
   if(game==='RPS')duel.throwId=e.id();
@@ -92,24 +94,30 @@ export function startDuel(r:Room,e:EngineOptions,now:number,setup:Pick<DuelState
   }
 }
 
+/** Shared admission/funding for ordinary invitations and matched bounty defenses. */
+export function inviteDuel(r:Room,p:Player,defenderId:unknown,amount:unknown,e:EngineOptions,now:number,meta:Pick<DuelInvite,'purpose'|'bountyId'>={}){
+  const social=r.party?.social;requireRule(social&&r.phase==='SOCIAL'&&!social.duel&&now<social.admissionDeadline,'ADMISSION_CLOSED');
+  requireRule(!r.terminationConfirmed&&participants(r).length>=2,'NOT_ENOUGH_PLAYERS');
+  requireRule(!social.invites.some(i=>i.inviterId===p.id&&i.status==='pending'),'INVITE_PENDING','Your outgoing invitation is still pending.');
+  requireRule(social.invites.length<64,'INVITE_LIMIT');
+  requireRule(typeof defenderId==='string'&&defenderId!==p.id,'INVALID_DEFENDER');
+  const defender=participants(r).find(candidate=>candidate.id===defenderId);requireRule(defender,'DEFENDER_UNAVAILABLE');
+  requireRule(validAmount(amount),'INVALID_AMOUNT','Choose 50–250 chips in steps of 50.');
+  requireRule(available(p.account)>=amount,'INSUFFICIENT_AVAILABLE_CHIPS');
+  const id=e.id();reserve(p.account,stakeKey(id,p.id),amount);
+  social.invites.push({id,inviterId:p.id,defenderId,amount,deadline:Math.min(now+INVITE_MS,social.admissionDeadline),status:'pending',slot:social.slot,...meta});
+  event(r,e,`${p.name} invites ${defender.name} to a ${amount}-chip ${meta.purpose==='BOUNTY'?'bounty defense':'duel'}.`,now,p.id);refreshSocialDeadline(r);
+}
+
 export function duelCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   const social=r.party?.social;requireRule(r.mode==='PARTY'&&social,'SOCIAL_CLOSED');
   requireRule(c.socialId===social.id,'STALE_SOCIAL');
   requireRule(p.participating&&p.connected&&!p.departed,'NOT_PARTICIPATING');
   if(c.type==='duel:invite'||c.type==='duel:accept'||c.type==='duel:reject'){
+    requireRule(c.socialSlotId===social.slotId,'STALE_SOCIAL_SLOT','This social admission slot has changed.');
     requireRule(r.phase==='SOCIAL'&&!social.duel&&now<social.admissionDeadline,'ADMISSION_CLOSED');
     if(c.type==='duel:invite'){
-      requireRule(!r.terminationConfirmed&&participants(r).length>=2,'NOT_ENOUGH_PLAYERS');
-      requireRule(!social.invites.some(i=>i.inviterId===p.id&&i.status==='pending'),'INVITE_PENDING','Your outgoing invitation is still pending.');
-      requireRule(social.invites.length<64,'INVITE_LIMIT');
-      const defenderId=c.payload?.defenderId,amount=c.payload?.amount;
-      requireRule(typeof defenderId==='string'&&defenderId!==p.id,'INVALID_DEFENDER');
-      const defender=participants(r).find(candidate=>candidate.id===defenderId);requireRule(defender,'DEFENDER_UNAVAILABLE');
-      requireRule(validAmount(amount),'INVALID_AMOUNT','Choose 50–250 chips in steps of 50.');
-      requireRule(available(p.account)>=amount,'INSUFFICIENT_AVAILABLE_CHIPS');
-      const id=e.id();reserve(p.account,stakeKey(id,p.id),amount);
-      social.invites.push({id,inviterId:p.id,defenderId,amount,deadline:Math.min(now+INVITE_MS,social.admissionDeadline),status:'pending'});
-      event(r,e,`${p.name} invites ${defender.name} to a ${amount}-chip duel.`,now,p.id);refreshSocialDeadline(r);return;
+      inviteDuel(r,p,c.payload?.defenderId,c.payload?.amount,e,now);return;
     }
     const invite=social.invites.find(i=>i.id===c.inviteId);requireRule(invite&&invite.status==='pending'&&now<invite.deadline,'INVITE_CLOSED');
     requireRule(invite.defenderId===p.id,'NOT_DEFENDER');
@@ -119,15 +127,17 @@ export function duelCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
     const inviter=participants(r).find(candidate=>candidate.id===invite.inviterId);requireRule(inviter,'INVITER_UNAVAILABLE');
     const game=c.payload?.game;requireRule(game==='RPS'||game==='COIN'||game==='CONNECT4'||game==='CHESS','INVALID_GAME');
     const coinSide=c.payload?.coinSide;requireRule(game!=='COIN'||coinSide==='HEADS'||coinSide==='TAILS','INVALID_COIN_SIDE');
+    validateBountyDefense(r,invite);
     // The room commits this candidate atomically: conflicting outgoing offers no
     // longer reserve funds once this acceptance owns the only contest slot.
     for(const other of social.invites)if(other!==invite)cancelInvite(r,other,'cancelled');
     requireRule(available(p.account)>=invite.amount,'INSUFFICIENT_AVAILABLE_CHIPS');
     reserve(p.account,stakeKey(invite.id,p.id),invite.amount);
     commit(inviter.account,stakeKey(invite.id,inviter.id));commit(p.account,stakeKey(invite.id,p.id));invite.status='accepted';
+    acceptBountyDefense(r,invite);
     failBallot(r,e,now,'The overthrow ballot closed because a funded duel was accepted.');
     event(r,e,`${p.name} accepts ${inviter.name}'s duel and chooses ${gameName({game})}. Both stakes are committed.`,now,p.id);
-    startDuel(r,e,now,{id:invite.id,game,inviterId:inviter.id,defenderId:p.id,amount:invite.amount},coinSide as 'HEADS'|'TAILS'|undefined);
+    startDuel(r,e,now,{id:invite.id,game,inviterId:inviter.id,defenderId:p.id,amount:invite.amount,purpose:invite.purpose,bountyId:invite.bountyId},coinSide as 'HEADS'|'TAILS'|undefined);
     return;
   }
   const duel=social.duel;requireRule(r.phase==='DUEL'&&duel?.status==='playing','DUEL_CLOSED');requireRule(c.duelId===duel.id,'STALE_DUEL');
@@ -162,7 +172,14 @@ export function cancelPlayerInvites(r:Room,playerId:string,e:EngineOptions,now:n
 /** Returns true only after the current bounded interval has no live obligation. */
 export function socialDeadline(r:Room,e:EngineOptions,at:number):boolean{
   const social=r.party?.social;requireRule(social,'SOCIAL_CLOSED');
-  if(r.phase==='DUEL_RESULT'){closeSocial(r);return true;}
+  if(r.phase==='DUEL_RESULT'){
+    if(r.roundLimit===6&&social.slot===1&&!r.terminationConfirmed&&participants(r).length>=2&&social.hardDeadline-at>=SOCIAL_MS){
+      social.slot=2;social.slotId=e.id();social.slotOpenedAt=at;social.admissionDeadline=at+ADMISSION_MS;social.duel=null;
+      r.phase='SOCIAL';r.deadline=social.admissionDeadline;
+      event(r,e,'Social interval · Second and final contest slot. Its deadlines share the original interval budget.',at);return false;
+    }
+    closeSocial(r);return true;
+  }
   if(r.phase==='LAST_STAND_CHOICE'){overthrowDeadline(r,e,at);return false;}
   if(r.phase==='DUEL'){
     const duel=social.duel;requireRule(duel?.status==='playing','DUEL_CLOSED');
@@ -200,9 +217,12 @@ export function assertDuels(r:Room){
   assertBallots(r);
   const social=party.social;
   for(const invite of social?.invites??[]){
+    requireRule(invite.purpose===undefined||invite.purpose==='BOUNTY','DUEL_INVITE_PURPOSE_INVARIANT');
     requireRule(invite.inviterId!==invite.defenderId&&validAmount(invite.amount),'INVALID_DUEL_INVITE');
     const inviter=player(r,invite.inviterId),key=stakeKey(invite.id,inviter.id);
-    requireRule(invite.deadline<=social!.admissionDeadline&&invite.deadline>social!.openedAt,'INVITE_DEADLINE_INVARIANT');
+    const slot=invite.slot??1,openedAt=slot===1?social!.openedAt:social!.slotOpenedAt;
+    requireRule((slot===1||slot===2&&social!.slot===2)&&invite.deadline<=openedAt+ADMISSION_MS&&invite.deadline>openedAt,'INVITE_DEADLINE_INVARIANT');
+    if(invite.purpose==='BOUNTY')requireRule(invite.amount===50&&typeof invite.bountyId==='string'&&party.bounties.some(b=>b.id===invite.bountyId&&b.targetId===invite.defenderId),'BOUNTY_INVITE_INVARIANT');
     if(invite.status==='pending')requireRule(inviter.account.reservations[key]===invite.amount,'DUEL_RESERVATION_INVARIANT');
     else if(invite.status!=='accepted')requireRule(!Object.hasOwn(inviter.account.reservations,key)&&!Object.hasOwn(inviter.account.escrows,key),'CANCELLED_DUEL_STAKE');
   }
@@ -210,11 +230,13 @@ export function assertDuels(r:Room){
   for(const d of party.duelHistory){requireRule(d.status==='settled'&&!completed.has(d.id),'DUEL_HISTORY_INVARIANT');completed.add(d.id);}
   const duels=[...party.duelHistory,...(social?.duel&& !completed.has(social.duel.id)?[social.duel]:[])];
   for(const d of duels){
+    requireRule(d.purpose===undefined||d.purpose==='LAST_STAND'||d.purpose==='BOUNTY','DUEL_PURPOSE_INVARIANT');
     requireRule((d.purpose==='LAST_STAND'?d.amount===0&&typeof d.ballotId==='string':validAmount(d.amount))&&d.inviterId!==d.defenderId,'DUEL_STAKE_INVARIANT');
     if(d.purpose==='LAST_STAND'){
       const ballot=party.overthrowHistory.find(b=>b.id===d.ballotId)??(social?.ballot?.id===d.ballotId?social!.ballot:null);
       requireRule(ballot&&ballot.houseId===d.defenderId&&ballot.challengerId===d.inviterId&&ballot.status===(d.status==='playing'?'playing':'settled'),'LAST_STAND_BALLOT_INVARIANT');
     }
+    if(d.purpose==='BOUNTY')requireRule(d.amount===50&&typeof d.bountyId==='string'&&party.bounties.some(b=>b.id===d.bountyId&&b.targetId===d.defenderId),'BOUNTY_DUEL_INVARIANT');
     const ids=[d.inviterId,d.defenderId];
     requireRule(d.winnerId===null||ids.includes(d.winnerId),'DUEL_WINNER_INVARIANT');
     requireRule(d.throws.length<=5&&d.throws.every((t,i)=>t.number===i+1),'RPS_THROW_INVARIANT');

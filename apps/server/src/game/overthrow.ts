@@ -36,6 +36,7 @@ export function overthrowCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:n
   const party=r.party,social=party?.social;requireRule(r.mode==='PARTY'&&party&&social,'SOCIAL_CLOSED');
   requireRule(c.socialId===social.id,'STALE_SOCIAL');requireRule(p.participating&&p.connected&&!p.departed,'NOT_PARTICIPATING');
   if(c.type==='house:ballot'){
+    requireRule(c.socialSlotId===social.slotId,'STALE_SOCIAL_SLOT','This social admission slot has changed.');
     requireRule(r.phase==='SOCIAL'&&!social.duel&&now<social.admissionDeadline,'ADMISSION_CLOSED');
     requireRule(!r.terminationConfirmed&&connected(r).length>=2,'NOT_ENOUGH_PLAYERS');
     requireRule(party.houseId&&p.id!==party.houseId,'NOT_ELIGIBLE_VOTER');

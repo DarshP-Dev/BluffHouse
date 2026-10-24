@@ -123,7 +123,7 @@ function envelope(type: CommandType, payload?: Record<string, unknown>, context?
       roomInstanceId: room.instanceId, lobbyId: room.lobbyId, matchId: room.matchId,
       roundId: room.roundId, decisionId: room.decisionId, bettingId: room.bettingId,
       offerId: room.bluff?.id, auctionId: room.party?.auction.id,
-      socialId: room.party?.social?.id, duelId: room.party?.social?.duel?.id,
+      socialId: room.party?.social?.id, socialSlotId: room.party?.social?.slotId, duelId: room.party?.social?.duel?.id,
       throwId: room.party?.social?.duel?.throwId,
       moveId: room.party?.social?.duel?.connect4?.moveId ?? room.party?.social?.duel?.chess?.moveId,
       ballotId: room.party?.social?.ballot?.id,

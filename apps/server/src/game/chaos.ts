@@ -1,4 +1,4 @@
-import {RULES,type ChaosKind,type ChaosRule,type ChaosView,type Command} from '@bluff-house/shared';
+import {type ChaosKind,type ChaosRule,type ChaosView,type Command} from '@bluff-house/shared';
 import {available,credit,reserve} from './ledger.js';
 import {addEvent} from './engine.js';
 import {eligibleHands,handCardReason,applyHandCard} from './chaos-hands.js';
@@ -64,7 +64,7 @@ function applyMultiplier(r:Room,p:Player,factor:2|3,source:ChaosKind){
 
 /** One grant pass per settled non-final round. Ranking ties are included. */
 export function grantChaos(r:Room,e:EngineOptions,now:number){
-  if(!r.party||r.phase!=='ROUND_RESULT'||!r.roundId||r.round>=RULES.rounds||r.terminationConfirmed)return;
+  if(!r.party||r.phase!=='ROUND_RESULT'||!r.roundId||r.round>=r.roundLimit||r.terminationConfirmed)return;
   const chaos=r.party.chaos;if(chaos.grantedRounds.includes(r.roundId))return;
   const players=r.players.filter(p=>p.participating&&!p.departed).sort((a,b)=>a.account.balance-b.account.balance||a.seat-b.seat);
   const threshold=players[Math.min(1,players.length-1)]?.account.balance;
