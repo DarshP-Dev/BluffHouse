@@ -5,11 +5,19 @@ export type Rank = 'A'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'|'10'|'J'|'Q'|'K';
 export interface Card { id:string; rank:Rank; suit:Suit }
 export interface HandValue { total:number; soft:boolean; bust:boolean; natural:boolean }
 export type GameMode = 'CLASSIC'|'PARTY';
+export type ProfileColor = 'GOLD'|'RUBY'|'EMERALD'|'SAPPHIRE'|'VIOLET'|'CORAL';
+export type BadgeId = 'HOUSEBREAKER'|'BOUNTY_HUNTER'|'MASTER_BLUFFER'|'VAULT_THIEF'|'UNTOUCHABLE'|'BETRAYER'|'HIGH_ROLLER'|'COMEBACK_KING';
+export interface BadgeRule {id:BadgeId;name:string;description:string}
+export interface EarnedBadge {id:BadgeId;earnedAt:number;evidence:{matchId:string;eventId:string;description:string}}
+export interface ProfileView {initials:string;color:ProfileColor;badges:EarnedBadge[];progress:{acceptedBluffWins:number;masterBlufferTarget:5};lifetime:'guest-session'}
+export interface MatchStats {playerId:string;blackjackWins:number;blackjackLosses:number;blackjackPushes:number;blackjackNet:number;bluffWins:number;bluffLosses:number;bluffNet:number;duelWins:number;duelLosses:number;duelDraws:number;duelNet:number;bountyAwarded:number;dealsPlayed:number;cooperations:number;loneSteals:number;dealNet:number;vaultWon:number;houseReigns:number;bountiesClaimed:number;vaultVictories:number}
+export interface ChatMessage {id:string;playerId:string;username:string;text:string;at:number}
 export type Phase = 'LOBBY'|'HOUSE_AUCTION'|'HOUSE_REVEAL'|'BETTING'|'POT_TWIST'|'DEALING'|'HAND_CHAOS'|'PLAYER_TURN'|'BLUFF_OFFER'|'BLUFF_REVEAL'|'DEALER_TURN'|'ROUND_RESULT'|'SOCIAL'|'LAST_STAND_CHOICE'|'DUEL'|'DUEL_RESULT'|'DEAL'|'DEAL_RESULT'|'SHADOW_DRAW'|'SHADOW_CLAIM'|'SHADOW_CHALLENGE'|'SHADOW_RESULT'|'WAITING_FOR_PLAYERS'|'RESULTS';
 export interface PlayerView {
   id:string; name:string; seat:number; connected:boolean; departed:boolean; ready:boolean;
   balance:number; reserved:number; available:number; committed:number; wager:number;
   hand:Card[]; value:HandValue|null; status:string; bluffUsed:boolean; bluffWins:number; bluffLosses:number;
+  profile:ProfileView;
 }
 export interface BluffView { id:string; claimantId:string; challengerId?:string; amount:number; deadline:number; status:'open'|'accepted'|'expired'|'cancelled'; card?:Card; winnerId?:string; pot?:number }
 export interface TableEvent { id:string; kind:string; text:string; playerId?:string; at:number; revision:number }
@@ -49,8 +57,9 @@ export interface RoomView {
   phase:Phase; mode:GameMode; roundLimit:3|6; finaleEnabled:boolean; party:PartyView|null; roundPayouts:RoundPayout[]; players:PlayerView[]; matchId?:string; roundId?:string; round:number;
   deadline:number|null; serverTime:number; decisionId?:string; bettingId?:string; activePlayerId?:string;
   dealer:(Card|null)[]; dealerValue:HandValue|null; discarded:Card[]; bluff:BluffView|null; events:TableEvent[]; results:MatchResults|null; recoveryDeadline:number|null;
+  chat:ChatMessage[];badgeRegistry:BadgeRule[];matchStats:MatchStats[];
 }
-export type CommandType = 'room:create'|'room:join'|'lobby:ready'|'lobby:mode'|'lobby:rounds'|'lobby:finale'|'bounty:contribute'|'bounty:invite'|'deal:offer'|'deal:accept'|'deal:reject'|'deal:choose'|'shadow:draw'|'shadow:stand'|'shadow:claim'|'shadow:pass'|'shadow:reveal'|'shadow:challenge'|'house:bid'|'house:ballot'|'house:vote'|'house:choose'|'chaos:activate'|'chaos:optin'|'duel:invite'|'duel:reject'|'duel:accept'|'duel:choose'|'duel:move'|'duel:resign'|'match:start'|'bet:submit'|'bet:withdraw'|'turn:hit'|'turn:stand'|'bluff:offer'|'bluff:accept'|'reaction:send'|'room:leave'|'results:return'|'state:sync';
+export type CommandType = 'room:create'|'room:join'|'lobby:ready'|'lobby:mode'|'lobby:rounds'|'lobby:finale'|'bounty:contribute'|'bounty:invite'|'deal:offer'|'deal:accept'|'deal:reject'|'deal:choose'|'shadow:draw'|'shadow:stand'|'shadow:claim'|'shadow:pass'|'shadow:reveal'|'shadow:challenge'|'house:bid'|'house:ballot'|'house:vote'|'house:choose'|'chaos:activate'|'chaos:optin'|'duel:invite'|'duel:reject'|'duel:accept'|'duel:choose'|'duel:move'|'duel:resign'|'match:start'|'bet:submit'|'bet:withdraw'|'turn:hit'|'turn:stand'|'bluff:offer'|'bluff:accept'|'reaction:send'|'chat:send'|'profile:update'|'room:leave'|'results:return'|'state:sync';
 export interface Command { requestId:string; type:CommandType; roomInstanceId?:string; lobbyId?:string; matchId?:string; roundId?:string; decisionId?:string; bettingId?:string; offerId?:string; auctionId?:string; socialId?:string; socialSlotId?:string; dealOfferId?:string; dealId?:string; shadowId?:string; shadowClaimId?:string; inviteId?:string; duelId?:string; throwId?:string; moveId?:string; ballotId?:string; chaosWindowId?:string; payload?:Record<string,unknown> }
 export interface Ack { requestId:string; status:'ok'|'rejected'; code:string; message?:string; appliedRevision?:number; currentRevision:number }
 export interface SessionResponse { authenticated:boolean; playerId?:string; recoverable?:boolean; serverInstanceId:string; error?:string }

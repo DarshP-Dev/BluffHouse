@@ -84,7 +84,7 @@ export function createApp(options:AppOptions={}){
   app.use((error:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{res.status(400).json({error:error instanceof SyntaxError?'Invalid JSON request.':'Request could not be processed.'});});
   const tick=setInterval(()=>{
     manager.reconcile();
-    for(const [key,guest] of sessions)if(!guest.socket&&!manager.roomFor(guest.id)&&now()-guest.lastSeen>86400000){sessions.delete(key);guests.delete(guest.id);}
+    for(const [key,guest] of sessions)if(!guest.socket&&!manager.roomFor(guest.id)&&now()-guest.lastSeen>86400000){sessions.delete(key);guests.delete(guest.id);manager.forgetSessionProfile(guest.id);}
     for(const [ip,rate] of requestRates)if(now()-rate.at>60000)requestRates.delete(ip);
   },options.tickMs??100);tick.unref();
   return {app,http,io,manager,instanceId,async listen(port=3000,host='127.0.0.1'){await new Promise<void>((resolve,reject)=>{http.once('error',reject);http.listen(port,host,()=>{http.off('error',reject);resolve();});});const address=http.address();return typeof address==='object'&&address?address.port:port;},async close(){clearInterval(tick);for(const guest of guests.values())guest.socket=undefined;io.emit('recovery:error',{message:'The server is restarting. This in-memory match may become unavailable.'});await new Promise<void>(resolve=>io.close(()=>resolve()));}};

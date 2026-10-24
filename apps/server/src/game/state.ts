@@ -1,12 +1,14 @@
 import type {BluffView, Card, MatchResults, Phase, TableEvent, GameMode, PartyTransfer, RoundPayout, DuelInvite, DuelView, RpsChoice, BallotView, ChaosCard, ChaosKind, PotTwistView, BountyView} from '@bluff-house/shared';
-import type {DealView,DealChoice,DealOffer,ShadowClaim} from '@bluff-house/shared';
+import type {DealView,DealChoice,DealOffer,ShadowClaim,ProfileColor,EarnedBadge,MatchStats,ChatMessage} from '@bluff-house/shared';
 import type {Account} from './ledger.js';
 
 export interface Player {
   id:string; name:string; seat:number; joinedAt:number; connected:boolean; departed:boolean; ready:boolean;
   disconnectedAt:number|null; account:Account; hand:Card[]; status:string; wager:number; wagerId?:string;
   participating:boolean; bluffUsed:boolean; bluffWins:number; bluffLosses:number;
+  profile:ProfileState;matchStats:MatchStats;
 }
+export interface ProfileState {initials:string;color:ProfileColor;badges:EarnedBadge[];acceptedBluffWins:number;matchProgress:{matchId:string|null;bottomTwo:boolean;bottomRoundId:string|null;lastSettledRoundId:string|null}}
 export interface Room {
   mode:GameMode; roundLimit:3|6; finaleEnabled:boolean; party:PartyState|null; roundPayouts:RoundPayout[];
   instanceId:string; code:string; revision:number; lobbyId:string; hostId:string|null; phase:Phase; players:Player[];
@@ -15,6 +17,7 @@ export interface Room {
   deadline:number|null; decisionId?:string; bettingId?:string; activePlayerId?:string;
   bluff:BluffView|null; pausedRemaining:number; biggestBluff:BluffView|null; bluffOutcomes:BluffView[];
   events:TableEvent[]; results:MatchResults|null; recoveryDeadline:number|null; terminationConfirmed:boolean;
+  chat:ChatMessage[];chatRates:Record<string,number[]>;
   hostDeadline:number|null; emptySince:number|null; resultsSince:number|null;
 }
 export interface DuelState extends Omit<DuelView,'lockedPlayerIds'|'ownChoice'> {choices:Record<string,RpsChoice>;chessPgn?:string}

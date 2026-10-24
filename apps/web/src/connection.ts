@@ -9,12 +9,15 @@ export interface ConnectionState {
   pending: CommandType | null;
   clockOffset: number;
   reactions: TableEvent[];
+  chatPending: boolean;
+  chatError: string | null;
 }
 
-let state: ConnectionState = { status: 'checking', room: null, error: null, pending: null, clockOffset: 0, reactions: [] };
+let state: ConnectionState = { status: 'checking', room: null, error: null, pending: null, clockOffset: 0, reactions: [], chatPending: false, chatError: null };
 let socket: Socket | null = null;
 let initialized = false;
 let pendingRequestId: string | null = null;
+let pendingChatRequestId: string | null = null;
 const listeners = new Set<() => void>();
 const publish = (patch: Partial<ConnectionState>) => {
   state = { ...state, ...patch };
@@ -24,6 +27,7 @@ const publish = (patch: Partial<ConnectionState>) => {
 export const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 export const getSnapshot = () => state;
 export const clearError = () => publish({ error: null });
+export const clearChatError = () => publish({ chatError: null });
 
 /** Credentials remain in the server-issued HttpOnly cookie. Nothing is stored in localStorage. */
 export async function initializeConnection() {
@@ -74,24 +78,25 @@ function connectSocket(): Promise<void> {
   next.on('session:replaced', () => {
     if (socket !== next) return;
     next.disconnect();
-    pendingRequestId = null;
-    publish({ status: 'replaced', pending: null, error: 'This guest is now playing in another tab. Continue in that tab to keep your seat.' });
+    pendingRequestId = null; pendingChatRequestId = null;
+    publish({ chatPending: false, status: 'replaced', pending: null, error: 'This guest is now playing in another tab. Continue in that tab to keep your seat.' });
   });
   next.on('recovery:error', (error: unknown) => {
     if (socket !== next) return;
     next.disconnect();
-    pendingRequestId = null;
-    publish({ status: 'lost', room: null, pending: null, error: messageFrom(error, 'Your previous table is no longer available. You can start a new room.') });
+    pendingRequestId = null; pendingChatRequestId = null;
+    publish({ chatPending: false, status: 'lost', room: null, pending: null, error: messageFrom(error, 'Your previous table is no longer available. You can start a new room.') });
   });
   next.on('disconnect', () => {
     // Calls are admitted only while connected; discard any stale offline buffer.
     next.sendBuffer = [];
     if (socket !== next || state.status === 'replaced' || state.status === 'lost') return;
     pendingRequestId = null;
-    publish({ status: 'reconnecting', pending: null });
+    pendingChatRequestId = null;
+    publish({ status: 'reconnecting', pending: null, chatPending: false });
   });
   next.on('room:left', () => {
-    if (socket === next) publish({ room: null, reactions: [] });
+    if (socket === next) { pendingChatRequestId = null; publish({ room: null, reactions: [], chatPending: false, chatError: null }); }
   });
   next.on('connect', () => {
     if (socket !== next) return;
@@ -175,6 +180,32 @@ export async function sendCommand(type: CommandType, payload?: Record<string, un
   });
 }
 
+/** Chat has its own acknowledgement lane, so posting never disables live game actions. */
+export async function sendChat(text: string): Promise<boolean> {
+  if (!socket?.connected || state.status !== 'connected' || !state.room) {
+    publish({ chatError: 'Reconnect before sending a chat message.' });
+    return false;
+  }
+  if (state.chatPending) return false;
+  const command = envelope('chat:send', { text });
+  const sendingSocket = socket, instanceId = state.room.instanceId;
+  pendingChatRequestId = command.requestId;
+  publish({ chatPending: true, chatError: null });
+  return new Promise(resolve => {
+    sendingSocket.timeout(5000).emit('command', command, (error: Error | null, ack?: Ack) => {
+      if (sendingSocket !== socket || pendingChatRequestId !== command.requestId || state.room?.instanceId !== instanceId || state.status === 'replaced' || state.status === 'lost') { resolve(false); return; }
+      pendingChatRequestId = null;
+      publish({ chatPending: false });
+      if (error || !ack || ack.requestId !== command.requestId) {
+        publish({ chatError: 'Delivery confirmation was interrupted. Check the room history before sending again.' });
+        syncState(); resolve(false);
+      } else if (ack.status === 'rejected') {
+        publish({ chatError: ack.message || 'Your message was not sent. Please try again.' }); resolve(false);
+      } else resolve(true);
+    });
+  });
+}
+
 export async function enterRoom(mode: 'host' | 'join', username: string, roomCode: string): Promise<boolean> {
   publish({ error: null });
   try {
@@ -194,7 +225,7 @@ export async function enterRoom(mode: 'host' | 'join', username: string, roomCod
 export function returnToMenu() {
   const old = socket;
   socket = null;
-  pendingRequestId = null;
+  pendingRequestId = null; pendingChatRequestId = null;
   old?.disconnect();
-  publish({ status: 'idle', room: null, pending: null, error: null, reactions: [] });
+  publish({ status: 'idle', room: null, pending: null, error: null, reactions: [], chatPending: false, chatError: null });
 }

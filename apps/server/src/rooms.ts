@@ -2,15 +2,18 @@ import {randomInt,randomUUID} from 'node:crypto';
 import {RULES,EMOJIS,validName,type Ack,type Command,type CommandType,type RoomView,type TableEvent} from '@bluff-house/shared';
 import {makeShoe} from './game/cards.js';
 import {account} from './game/ledger.js';
-import {GameError,requireRule,type Room,type EngineOptions} from './game/state.js';
+import {GameError,requireRule,type Room,type EngineOptions,type Player,type ProfileState} from './game/state.js';
 import {addEvent,assertRoom,connected,createRoom,deadlineTransition,gameCommand,makePlayer,roundBoundary,startMatch} from './game/engine.js';
 import {project} from './projection.js';
 import {cancelBluff} from './game/bluff.js';
 import {cancelPlayerInvites} from './game/duels.js';
+import {chatCommand} from './game/chat.js';
+import {profileCommand} from './game/profiles.js';
+import {updateAchievements} from './game/achievements.js';
 
-const TYPES:CommandType[]=['room:create','room:join','lobby:ready','lobby:mode','lobby:rounds','lobby:finale','bounty:contribute','bounty:invite','deal:offer','deal:accept','deal:reject','deal:choose','shadow:draw','shadow:stand','shadow:claim','shadow:pass','shadow:reveal','shadow:challenge','house:bid','house:ballot','house:vote','house:choose','chaos:activate','chaos:optin','duel:invite','duel:reject','duel:accept','duel:choose','duel:move','duel:resign','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
+const TYPES:CommandType[]=['room:create','room:join','lobby:ready','lobby:mode','lobby:rounds','lobby:finale','bounty:contribute','bounty:invite','deal:offer','deal:accept','deal:reject','deal:choose','shadow:draw','shadow:stand','shadow:claim','shadow:pass','shadow:reveal','shadow:challenge','house:bid','house:ballot','house:vote','house:choose','chaos:activate','chaos:optin','duel:invite','duel:reject','duel:accept','duel:choose','duel:move','duel:resign','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','chat:send','profile:update','room:leave','results:return','state:sync'];
 const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','auctionId','socialId','socialSlotId','dealOfferId','dealId','shadowId','shadowClaimId','inviteId','duelId','throwId','moveId','ballotId','chaosWindowId','payload'];
-const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'lobby:rounds':['rounds'],'lobby:finale':['enabled'],'bounty:contribute':['targetId','amount'],'bounty:invite':['bountyId'],'deal:offer':['defenderId','amount'],'deal:choose':['choice'],'shadow:claim':['declaredTotal'],'house:bid':['amount'],'house:vote':['yes'],'house:choose':['game','coinSide'],'chaos:activate':['cardId','targetId'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'duel:move':['column','from','to','promotion'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
+const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'lobby:rounds':['rounds'],'lobby:finale':['enabled'],'bounty:contribute':['targetId','amount'],'bounty:invite':['bountyId'],'deal:offer':['defenderId','amount'],'deal:choose':['choice'],'shadow:claim':['declaredTotal'],'house:bid':['amount'],'house:vote':['yes'],'house:choose':['game','coinSide'],'chaos:activate':['cardId','targetId'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'duel:move':['column','from','to','promotion'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji'],'chat:send':['text'],'profile:update':['initials','color']};
 function canonical(value:unknown):string {if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;if(value&&typeof value==='object')return `{${Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical((value as Record<string,unknown>)[k])).join(',')}}`;return JSON.stringify(value);}
 export function validateCommand(raw:unknown):Command {
   requireRule(raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_REQUEST');
@@ -26,6 +29,7 @@ export class RoomManager {
   readonly rooms=new Map<string,Room>();readonly codes=new Map<string,string>();readonly membership=new Map<string,string>();
   readonly records=new Map<string,Recorded>();readonly settlementArchive=new Map<string,Record<string,number>[]>();
   readonly lastReaction=new Map<string,number>();
+  readonly sessionProfiles=new Map<string,ProfileState>();
   readonly e:EngineOptions;
   onChange:(room:Room)=>void=()=>{};
   onReaction:(room:Room,event:TableEvent)=>void=()=>{};
@@ -33,8 +37,25 @@ export class RoomManager {
   constructor(readonly instanceId:string,options:Partial<EngineOptions>={},readonly maxRooms=20){this.e={now:options.now??(()=>Date.now()),id:options.id??randomUUID,shoe:options.shoe??makeShoe,randomIndex:options.randomIndex??(length=>randomInt(length))};}
   roomFor(id:string){return this.rooms.get(this.membership.get(id)??'');}
   snapshot(id:string):RoomView|null{const r=this.roomFor(id);return r?project(r,id,this.instanceId,this.e.now()):null;}
-  private commit(previous:Room,candidate:Room){assertRoom(candidate);candidate.revision=previous.revision+1;this.rooms.set(candidate.instanceId,candidate);this.onChange(candidate);}
-  private update(r:Room,fn:(candidate:Room)=>void){const candidate=structuredClone(r);fn(candidate);this.commit(r,candidate);return candidate;}
+  private hydratePlayer(player:Player){
+    const profile=this.sessionProfiles.get(player.id);if(!profile)return;
+    player.profile.initials=profile.initials;player.profile.color=profile.color;player.profile.badges=structuredClone(profile.badges);player.profile.acceptedBluffWins=profile.acceptedBluffWins;
+  }
+  private rememberProfiles(room:Room){
+    const changed:string[]=[],visible=(profile:ProfileState)=>JSON.stringify({initials:profile.initials,color:profile.color,badges:profile.badges,acceptedBluffWins:profile.acceptedBluffWins});
+    for(const player of room.players){const previous=this.sessionProfiles.get(player.id);if(!previous||visible(previous)!==visible(player.profile))changed.push(player.id);this.sessionProfiles.set(player.id,structuredClone(player.profile));}
+    return changed;
+  }
+  forgetSessionProfile(playerId:string){if(this.roomFor(playerId))return false;return this.sessionProfiles.delete(playerId);}
+  private commit(previous:Room,candidate:Room,achievementPrevious:Room){
+    updateAchievements(achievementPrevious,candidate,this.e.now());assertRoom(candidate);candidate.revision=previous.revision+1;this.rooms.set(candidate.instanceId,candidate);
+    const changed=this.rememberProfiles(candidate);this.onChange(candidate);
+    // A departed player's accepted obligation may finish after they join another
+    // room. Merge session progress into that room without replacing its game.
+    const otherRooms=new Set(changed.map(id=>this.membership.get(id)).filter(id=>id&&id!==candidate.instanceId));
+    for(const id of otherRooms){const other=this.rooms.get(id!);if(other)this.update(other,()=>{});}
+  }
+  private update(r:Room,fn:(candidate:Room)=>void){const candidate=structuredClone(r);for(const player of candidate.players)this.hydratePlayer(player);const before=structuredClone(candidate);fn(candidate);this.commit(r,candidate,before);return candidate;}
   private code(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';for(let i=0;i<100;i++){let code='';for(let n=0;n<6;n++)code+=chars[randomInt(chars.length)];if(!this.codes.has(code))return code;}throw new GameError('ROOM_LIMIT');}
   private transferHost(r:Room,at:number){const next=connected(r).sort((a,b)=>a.joinedAt-b.joinedAt||a.seat-b.seat)[0];r.hostId=next?.id??null;r.hostDeadline=null;if(next)addEvent(r,this.e,'host',`${next.name} is now the host.`,at,next.id);}
   private presenceRules(r:Room,at:number){
@@ -66,15 +87,15 @@ export class RoomManager {
       if(c.type==='room:create'){
         requireRule(!r,'ALREADY_IN_ROOM','Return to your existing room or leave it first.');requireRule(this.rooms.size<this.maxRooms,'ROOM_LIMIT','All tables are occupied. Try again later.');
         const name=validName(c.payload?.username);requireRule(name,'INVALID_NAME','Use 2–16 letters, numbers, spaces, underscores or hyphens.');
-        r=createRoom(this.code(),makePlayer(id,name,0,this.e.now()),this.e);addEvent(r,this.e,'join',`${name} opened the table.`,this.e.now(),id);r.revision=1;
-        this.rooms.set(r.instanceId,r);this.codes.set(r.code,r.instanceId);this.membership.set(id,r.instanceId);targetId=r.instanceId;this.onChange(r);
+        r=createRoom(this.code(),makePlayer(id,name,0,this.e.now()),this.e);this.hydratePlayer(r.players[0]!);assertRoom(r);addEvent(r,this.e,'join',`${name} opened the table.`,this.e.now(),id);r.revision=1;
+        this.rooms.set(r.instanceId,r);this.codes.set(r.code,r.instanceId);this.membership.set(id,r.instanceId);this.rememberProfiles(r);targetId=r.instanceId;this.onChange(r);
       }else if(c.type==='room:join'){
         requireRule(!r,'ALREADY_IN_ROOM','Return to your existing room or leave it first.');
         const name=validName(c.payload?.username),code=c.payload?.roomCode;requireRule(name,'INVALID_NAME');requireRule(typeof code==='string'&&/^[A-Z2-9]{6}$/.test(code.trim().toUpperCase()),'INVALID_CODE','Enter the six-character room code.');
         const target=this.rooms.get(this.codes.get(code.trim().toUpperCase())??'');requireRule(target,'ROOM_MISSING','That room is unavailable.');requireRule(target.phase==='LOBBY','ROOM_IN_PROGRESS','This match has already started.');requireRule(target.players.length<RULES.maxPlayers,'ROOM_FULL','This room is full.');
         requireRule(!target.players.some(p=>p.name.toLowerCase()===name.toLowerCase()),'NAME_TAKEN','That name is already at the table.');
         const slot=Array.from({length:6},(_,n)=>n).find(n=>!target.players.some(p=>p.seat===n))!;
-        r=this.update(target,d=>{d.players.push(makePlayer(id,name,slot,this.e.now()));d.players.sort((a,b)=>a.seat-b.seat);d.emptySince=null;if(!d.hostId)this.transferHost(d,this.e.now());addEvent(d,this.e,'join',`${name} joined the table.`,this.e.now(),id);});
+        r=this.update(target,d=>{const joined=makePlayer(id,name,slot,this.e.now());this.hydratePlayer(joined);d.players.push(joined);d.players.sort((a,b)=>a.seat-b.seat);d.emptySince=null;if(!d.hostId)this.transferHost(d,this.e.now());addEvent(d,this.e,'join',`${name} joined the table.`,this.e.now(),id);});
         this.membership.set(id,target.instanceId);targetId=r.instanceId;
       }else {
         requireRule(r,'NO_MEMBERSHIP','This room is no longer available.');requireRule(c.roomInstanceId===r.instanceId,'STALE_ROOM');targetId=r.instanceId;
@@ -97,6 +118,8 @@ export class RoomManager {
           else requireRule(command.matchId===d.matchId,'STALE_MATCH');
           const now=this.e.now();
           switch(command.type){
+            case 'chat:send':chatCommand(d,p,command,this.e,now);break;
+            case 'profile:update':profileCommand(d,p,command);break;
             case 'lobby:mode':{
               requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');
               const mode=command.payload?.mode;requireRule(mode==='CLASSIC'||mode==='PARTY','INVALID_MODE');

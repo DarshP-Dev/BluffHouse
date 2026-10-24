@@ -11,6 +11,9 @@ import {openHandWindow,markOrdinaryHit,clearOrdinaryHit} from './chaos-hands.js'
 import {bountyCommand,refundBounties,assertBounties} from './bounties.js';
 import {dealCommand,dealsDeadline,assertDeals} from './deals.js';
 import {startShadow,shadowCommand,shadowDeadline,assertShadow} from './shadow.js';
+import {defaultProfile,assertProfiles} from './profiles.js';
+import {defaultMatchStats} from './achievements.js';
+import {assertChat} from './chat.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -18,10 +21,10 @@ export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:numbe
   r.events=r.events.slice(-60);
 }
 export function makePlayer(id:string,name:string,seat:number,now:number):Player {
-  return {id,name,seat,joinedAt:now,connected:true,departed:false,ready:false,disconnectedAt:null,account:account(),hand:[],status:'waiting',wager:0,participating:false,bluffUsed:false,bluffWins:0,bluffLosses:0};
+  return {id,name,seat,joinedAt:now,connected:true,departed:false,ready:false,disconnectedAt:null,account:account(),hand:[],status:'waiting',wager:0,participating:false,bluffUsed:false,bluffWins:0,bluffLosses:0,profile:defaultProfile(name,seat),matchStats:defaultMatchStats(id)};
 }
 export function createRoom(code:string,player:Player,e:EngineOptions):Room {
-  return {mode:'CLASSIC',roundLimit:3,finaleEnabled:false,party:null,roundPayouts:[],instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,discarded:[],dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
+  return {chat:[],chatRates:{},mode:'CLASSIC',roundLimit:3,finaleEnabled:false,party:null,roundPayouts:[],instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,discarded:[],dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
 }
 export function connected(r:Room){return r.players.filter(p=>p.connected&&!p.departed&&(r.phase==='LOBBY'||p.participating));}
 export function active(r:Room):Player {const p=r.players.find(p=>p.id===r.activePlayerId);requireRule(p,'NO_ACTIVE_PLAYER');return p;}
@@ -145,6 +148,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
   }
 }
 export function assertRoom(r:Room){
+  assertProfiles(r);assertChat(r);
   requireRule((r.roundLimit===3||r.roundLimit===6)&&typeof r.finaleEnabled==='boolean'&&(r.mode==='PARTY'||r.roundLimit===3&&!r.finaleEnabled),'ROUND_LIMIT_INVARIANT');
   assertChaos(r);
   assertDuels(r);

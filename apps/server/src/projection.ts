@@ -6,6 +6,8 @@ import {projectChaos} from './game/chaos.js';
 import {projectBounties,remainingBountyIntervals} from './game/bounties.js';
 import {projectDeal,projectDealHistory} from './game/deals.js';
 import {projectShadow} from './game/shadow.js';
+import {projectProfile} from './game/profiles.js';
+import {ACHIEVEMENTS,projectMatchStats} from './game/achievements.js';
 
 function duelView(d:DuelState,viewerId:string):DuelView {
   // Current simultaneous choices are private; completed throws are public.
@@ -31,8 +33,8 @@ export function project(r:Room,viewerId:string,serverInstanceId:string,now:numbe
   const sealed=r.phase==='HOUSE_AUCTION';
   const shadow=r.party?.shadow,activePlayerId=shadow?shadow.activePlayerId??undefined:r.activePlayerId,decisionId=shadow?shadow.decisionId??undefined:r.decisionId;
   return {serverInstanceId,instanceId:r.instanceId,code:r.code,revision:r.revision,lobbyId:r.lobbyId,viewerId,hostId:r.hostId,phase:r.phase,mode:r.mode,roundLimit:r.roundLimit,finaleEnabled:r.finaleEnabled,roundPayouts:r.roundPayouts.map(p=>({...p})),
-    party:partyView(r,viewerId,sealed),
-    players:r.players.map(p=>({id:p.id,name:p.name,seat:p.seat,connected:p.connected,departed:p.departed,ready:p.ready,balance:p.account.balance,reserved:sealed&&p.id!==viewerId?0:reserved(p.account),available:sealed&&p.id!==viewerId?p.account.balance:available(p.account),committed:Object.values(p.account.escrows).reduce((a,b)=>a+b,0),wager:p.wager,hand:p.hand.map(c=>({...c})),value:p.hand.length?evaluate(p.hand):null,status:p.status,bluffUsed:p.bluffUsed,bluffWins:p.bluffWins,bluffLosses:p.bluffLosses})),
+    party:partyView(r,viewerId,sealed),chat:r.chat.map(message=>({...message})),badgeRegistry:ACHIEVEMENTS.map(rule=>({...rule})),matchStats:projectMatchStats(r),
+    players:r.players.map(p=>({profile:projectProfile(p.profile),id:p.id,name:p.name,seat:p.seat,connected:p.connected,departed:p.departed,ready:p.ready,balance:p.account.balance,reserved:sealed&&p.id!==viewerId?0:reserved(p.account),available:sealed&&p.id!==viewerId?p.account.balance:available(p.account),committed:Object.values(p.account.escrows).reduce((a,b)=>a+b,0),wager:p.wager,hand:p.hand.map(c=>({...c})),value:p.hand.length?evaluate(p.hand):null,status:p.status,bluffUsed:p.bluffUsed,bluffWins:p.bluffWins,bluffLosses:p.bluffLosses})),
     matchId:r.matchId,roundId:r.roundId,round:r.round,deadline:r.deadline,serverTime:now,
     decisionId:activePlayerId===viewerId?decisionId:undefined,bettingId:r.bettingId,activePlayerId,
     dealer:r.dealer.map((c,i)=>i===0||r.dealerRevealed?{...c}:null),dealerValue:r.dealerRevealed&&r.dealer.length?evaluate(r.dealer):null,discarded:r.discarded.map(c=>({...c})),
