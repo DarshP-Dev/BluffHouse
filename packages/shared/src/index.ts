@@ -16,12 +16,15 @@ export interface TableEvent { id:string; kind:string; text:string; playerId?:str
 export interface MatchResults { reason?:string; winners:string[]; standings:{id:string;name:string;balance:number;bluffWins:number;bluffLosses:number}[]; biggestBluff:BluffView|null }
 export interface PartyTransfer {id:string;kind:'auction'|'commission'|'vault_distribution';amount:number;from:string;to:string;roundId?:string}
 export interface AuctionView {id:string;deadline:number;status:'open'|'revealed';bids:{playerId:string;submitted:boolean;amount?:number}[];winnerId:string|null;winningBid:number|null}
-export type DuelGame = 'RPS'|'COIN';
+export type DuelGame = 'RPS'|'COIN'|'CONNECT4'|'CHESS';
 export type RpsChoice = 'ROCK'|'PAPER'|'SCISSORS';
 export type CoinSide = 'HEADS'|'TAILS';
 export interface DuelInvite {id:string;inviterId:string;defenderId:string;amount:number;deadline:number;status:'pending'|'accepted'|'rejected'|'expired'|'cancelled'}
 export interface RpsThrow {number:number;choices:Record<string,RpsChoice|null>;winnerId:string|null}
-export interface DuelView {id:string;game:DuelGame;inviterId:string;defenderId:string;amount:number;status:'playing'|'settled';startedAt:number;hardDeadline:number;deadline:number;throwId?:string;throwNumber:number;scores:Record<string,number>;lockedPlayerIds:string[];ownChoice?:RpsChoice;throws:RpsThrow[];coinSide?:CoinSide;coinResult?:CoinSide;winnerId:string|null;reason?:string}
+export interface Connect4View {cells:(string|null)[][];firstPlayerId:string;activePlayerId:string;moveId:string}
+export interface ChessMove {from:string;to:string;promotion?:string}
+export interface ChessView {fen:string;board:{square:string;piece:string;color:'w'|'b'}[];whiteId:string;blackId:string;turnId:string;moveId:string;remainingMs:Record<string,number>;clockStartedAt:number;check:boolean;legalMoves:ChessMove[];lastMove?:ChessMove}
+export interface DuelView {id:string;game:DuelGame;inviterId:string;defenderId:string;amount:number;status:'playing'|'settled';startedAt:number;hardDeadline:number;deadline:number;throwId?:string;throwNumber:number;scores:Record<string,number>;lockedPlayerIds:string[];ownChoice?:RpsChoice;throws:RpsThrow[];coinSide?:CoinSide;coinResult?:CoinSide;connect4?:Connect4View;chess?:ChessView;winnerId:string|null;reason?:string}
 export interface SocialView {id:string;openedAt:number;admissionDeadline:number;hardDeadline:number;invites:DuelInvite[];duel:DuelView|null}
 export interface DuelStats {playerId:string;wins:number;losses:number;draws:number}
 export interface PartyView {houseId:string|null;vault:number;bonusReserve:number;initialBonusReserve:number;auction:AuctionView;transfers:PartyTransfer[];social:SocialView|null;duelHistory:DuelView[];duelStats:DuelStats[]}
@@ -32,8 +35,8 @@ export interface RoomView {
   deadline:number|null; serverTime:number; decisionId?:string; bettingId?:string; activePlayerId?:string;
   dealer:(Card|null)[]; dealerValue:HandValue|null; bluff:BluffView|null; events:TableEvent[]; results:MatchResults|null; recoveryDeadline:number|null;
 }
-export type CommandType = 'room:create'|'room:join'|'lobby:ready'|'lobby:mode'|'house:bid'|'duel:invite'|'duel:reject'|'duel:accept'|'duel:choose'|'duel:resign'|'match:start'|'bet:submit'|'bet:withdraw'|'turn:hit'|'turn:stand'|'bluff:offer'|'bluff:accept'|'reaction:send'|'room:leave'|'results:return'|'state:sync';
-export interface Command { requestId:string; type:CommandType; roomInstanceId?:string; lobbyId?:string; matchId?:string; roundId?:string; decisionId?:string; bettingId?:string; offerId?:string; auctionId?:string; socialId?:string; inviteId?:string; duelId?:string; throwId?:string; payload?:Record<string,unknown> }
+export type CommandType = 'room:create'|'room:join'|'lobby:ready'|'lobby:mode'|'house:bid'|'duel:invite'|'duel:reject'|'duel:accept'|'duel:choose'|'duel:move'|'duel:resign'|'match:start'|'bet:submit'|'bet:withdraw'|'turn:hit'|'turn:stand'|'bluff:offer'|'bluff:accept'|'reaction:send'|'room:leave'|'results:return'|'state:sync';
+export interface Command { requestId:string; type:CommandType; roomInstanceId?:string; lobbyId?:string; matchId?:string; roundId?:string; decisionId?:string; bettingId?:string; offerId?:string; auctionId?:string; socialId?:string; inviteId?:string; duelId?:string; throwId?:string; moveId?:string; payload?:Record<string,unknown> }
 export interface Ack { requestId:string; status:'ok'|'rejected'; code:string; message?:string; appliedRevision?:number; currentRevision:number }
 export interface SessionResponse { authenticated:boolean; playerId?:string; recoverable?:boolean; serverInstanceId:string; error?:string }
 export function validName(input:unknown):string|null { if(typeof input!=='string')return null; const name=input.trim(); return /^[\p{L}\p{N} _-]{2,16}$/u.test(name)?name:null; }

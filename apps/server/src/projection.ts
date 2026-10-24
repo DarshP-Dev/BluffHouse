@@ -5,7 +5,7 @@ import type {Room,DuelState} from './game/state.js';
 
 function duelView(d:DuelState,viewerId:string):DuelView {
   // Current simultaneous choices are private; completed throws are public.
-  return {id:d.id,game:d.game,inviterId:d.inviterId,defenderId:d.defenderId,amount:d.amount,status:d.status,startedAt:d.startedAt,hardDeadline:d.hardDeadline,deadline:d.deadline,throwId:d.throwId,throwNumber:d.throwNumber,scores:{...d.scores},lockedPlayerIds:Object.keys(d.choices),...(d.choices[viewerId]?{ownChoice:d.choices[viewerId]}:{}),throws:structuredClone(d.throws),coinSide:d.coinSide,coinResult:d.coinResult,winnerId:d.winnerId,reason:d.reason};
+  return {id:d.id,game:d.game,inviterId:d.inviterId,defenderId:d.defenderId,amount:d.amount,status:d.status,startedAt:d.startedAt,hardDeadline:d.hardDeadline,deadline:d.deadline,throwId:d.throwId,throwNumber:d.throwNumber,scores:{...d.scores},lockedPlayerIds:Object.keys(d.choices),...(d.choices[viewerId]?{ownChoice:d.choices[viewerId]}:{}),throws:structuredClone(d.throws),coinSide:d.coinSide,coinResult:d.coinResult,connect4:d.connect4?structuredClone(d.connect4):undefined,chess:d.chess?structuredClone(d.chess):undefined,winnerId:d.winnerId,reason:d.reason};
 }
 
 export function project(r:Room,viewerId:string,serverInstanceId:string,now:number):RoomView {

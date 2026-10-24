@@ -621,3 +621,54 @@ button { transition: background .16s, border-color .16s, transform .16s, box-sha
   .house-auction .bet-controls { align-items: stretch; }
   .house-auction .bet-chips { flex-wrap: wrap; }
 }
+
+.board-duel { margin-top: 22px; min-width: 0; }
+.board-turn { color: #f0d7a8; font-size: 17px; line-height: 1.5; margin: 15px 0; }
+.board-legend { display: flex; gap: 20px; flex-wrap: wrap; margin: 18px 0; }
+.board-legend > span { display: flex; align-items: center; gap: 8px; color: #e4d8c1; font-size: 12px; }
+.board-legend .disc { width: 18px; height: 18px; }
+.disc { display: block; width: 100%; aspect-ratio: 1; border-radius: 50%; border: 2px solid #0004; box-shadow: inset 0 -3px 5px #0003; }
+.disc-1 { background: #efc365; }
+.disc-2 { background: #a85061; }
+.disc-empty { background: #101916; box-shadow: inset 0 3px 8px #0008; }
+.connect4-wrap { width: min(100%, 490px); margin: 20px auto; }
+.connect4-drops { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-bottom: 8px; }
+.connect4-drops button { min-width: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 4px; border-radius: 5px; border: 1px solid #aa8b52; background: #32372a; color: #f0d7a8; font: inherit; }
+.connect4-drops button:disabled { opacity: .45; cursor: default; }
+.connect4-board { border: 2px solid #7d784d; border-radius: 9px; padding: 7px; background: #43594d; display: grid; gap: 6px; }
+.connect4-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.chess-clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0; }
+.chess-clocks > div { display: flex; flex-direction: column; gap: 8px; padding: 13px; background: #121c17; border: 1px solid #56604d; border-radius: 7px; }
+.chess-clocks span { font-size: 12px; color: #c8bca6; }
+.chess-clocks strong { font-size: 25px; font-variant-numeric: tabular-nums; color: #ead9b6; }
+.chess-clocks .running-clock { border-color: #ddbb76; box-shadow: inset 0 0 0 1px #ddbb76; }
+.chess-promotion { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: #d6c6aa; font-size: 12px; margin: 15px 0; }
+.chess-board { width: min(100%, 480px); margin: 20px auto; border: 3px solid #786447; background: #786447; }
+.chess-rank { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.chess-rank > div { min-width: 0; }
+.chess-square { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 0; font-family: 'Segoe UI Symbol', 'Arial Unicode MS', serif; font-size: clamp(22px, 4vw, 40px); line-height: 1; }
+.chess-square:disabled { cursor: default; opacity: 1; }
+.chess-square.light-square { background: #d1c6ac; }
+.chess-square.dark-square { background: #687d69; }
+.chess-square small { position: absolute; bottom: 2px; left: 3px; font: 8px/1 sans-serif; color: #172119; }
+.chess-square .white-piece { color: #fff9e9; text-shadow: 0 1px 1px #000, 1px 0 #000, -1px 0 #000; }
+.chess-square .black-piece { color: #10221a; text-shadow: 0 1px 1px #fff8; }
+.chess-square.last-move-square { box-shadow: inset 0 0 0 3px #deba625f; }
+.chess-square.selected-square { background: #c3aa59; box-shadow: inset 0 0 0 3px #fbe9a7; }
+.chess-square.legal-square { box-shadow: inset 0 0 0 3px #e6b947; }
+.chess-square:focus-visible, .connect4-drops button:focus-visible { outline: 3px solid #fff3c9; outline-offset: -3px; z-index: 1; }
+@media (max-width: 620px) {
+  .connect4-board { padding: 5px; gap: 4px; }
+  .connect4-row { gap: 4px; }
+  .connect4-drops { gap: 3px; }
+  .connect4-drops button { font-size: 11px; flex-direction: column; gap: 1px; }
+  .chess-clocks { gap: 8px; }
+  .chess-clocks > div { padding: 10px; }
+  .chess-clocks span { font-size: 10px; overflow-wrap: anywhere; }
+  .chess-square { font-size: clamp(21px, 7vw, 34px); }
+  .chess-square small { font-size: 7px; }
+}
+
+.chess-time-rules { color: #c8bca6; font-size: 12px; line-height: 1.7; margin: 18px 0; }
+.chess-time-rules summary { cursor: pointer; color: #e4c893; padding: 8px 0; }
+.chess-time-rules p { margin: 10px 0; }

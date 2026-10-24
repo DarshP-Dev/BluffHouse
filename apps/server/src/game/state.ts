@@ -16,7 +16,7 @@ export interface Room {
   events:TableEvent[]; results:MatchResults|null; recoveryDeadline:number|null; terminationConfirmed:boolean;
   hostDeadline:number|null; emptySince:number|null; resultsSince:number|null;
 }
-export interface DuelState extends Omit<DuelView,'lockedPlayerIds'|'ownChoice'> {choices:Record<string,RpsChoice>}
+export interface DuelState extends Omit<DuelView,'lockedPlayerIds'|'ownChoice'> {choices:Record<string,RpsChoice>;chessPgn?:string}
 export interface SocialState {id:string;openedAt:number;admissionDeadline:number;hardDeadline:number;invites:DuelInvite[];duel:DuelState|null}
 export interface PartyState {houseId:string|null;vault:number;bonusReserve:number;initialBonusReserve:number;vaultDistributed:boolean;transfers:PartyTransfer[];social:SocialState|null;socialRound:number;duelHistory:DuelState[];auction:{id:string;deadline:number;status:'open'|'revealed';bids:Record<string,number>;winnerId:string|null;winningBid:number|null}}
 export interface EngineOptions { now:()=>number; id:()=>string; shoe:()=>Card[]; randomIndex:(length:number)=>number }

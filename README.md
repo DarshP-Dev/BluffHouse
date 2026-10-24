@@ -75,4 +75,14 @@ Slice 4 passed type checking, all 225 unit/integration tests, the production bui
 
 Slice 5 passed type checking, all 276 unit/integration tests, the production build, and five duel/House/Classic browser tests. Private reconnects, bounded admission, competing invitations, rollback, full pot settlement, and whole-match accounting are covered.
 
+Slice 6 adds timed Connect 4 and Bullet Chess to the same funded duel flow. Type checking, all 342 unit/integration tests, the production build, and the board/Classic browser journeys pass. A combined board/RPS/Coin/Classic run passed six browser tests; the final board and Classic run passed four after clock fixes. The board rules and material-policy limits are documented below.
+
 Rooms and guest credentials live in server memory. Restarting the backend loses them; the browser must show an unavailable-match recovery path, never silently insert new chips into a lost match. This is a local proof of concept, not durable account storage. The learner authorized normal fast-forward pushes of verified completed slices after inspecting their exact commits and private-file exclusions. Deployment and purchases require separate authorization. Keep the private learner profile and local credentials out of Git.
+
+## Board duel rules
+
+Connect 4 uses a standard 7-by-6 board, random first player, eight seconds per move, and a 45-second total limit. Missing a move forfeits; an unfinished board at the total limit draws. Chess starts from the standard position with random colors, 30 seconds per player, no increment, and a 60-second total cap. The cap draws an unresolved game. The server validates every move; rejected moves leave the running clock unchanged. Checkmate wins; stalemate, threefold repetition, fifty moves without a pawn move/capture, and library-detected insufficient material draw automatically.
+
+Flag fall uses a separate **per-side material rule** for the prospective winner. A bare king cannot win on time. A lone knight needs assisting opponent material beyond only kings/queens; bishop-only material needs bishops on both square colors or a pawn/knight somewhere on the board. Pawns, rooks, queens, mixed minors or two knights may permit cooperative mate. This classifies mating material; it does not solve arbitrary fortresses or forced lines. The distinction between material classification and full position reachability is also described in the [python-chess documentation](https://python-chess.readthedocs.io/en/latest/core.html#chess.Board.has_insufficient_material). No python-chess source or runtime is included.
+
+Chess move validation uses pinned [chess.js 1.4.0](https://jhlywa.github.io/chess.js/) on the server. Its BSD 2-Clause notice is preserved in `apps/server/CHESS-LICENSE.txt`.

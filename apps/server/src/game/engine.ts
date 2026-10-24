@@ -102,7 +102,7 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
 }
 export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   switch(c.type){
-    case 'duel:invite':case 'duel:reject':case 'duel:accept':case 'duel:choose':case 'duel:resign':duelCommand(r,p,c,e,now);break;
+    case 'duel:invite':case 'duel:reject':case 'duel:accept':case 'duel:choose':case 'duel:move':case 'duel:resign':duelCommand(r,p,c,e,now);break;
     case 'house:bid': submitBid(r,p,c);break;
     case 'bluff:offer': offerBluff(r,p,c,e,now);addEvent(r,e,'bluff',`${p.name}: “My next hit won't bust.” ${r.bluff!.amount} chips to call.`,now,p.id);break;
     case 'bluff:accept': {
