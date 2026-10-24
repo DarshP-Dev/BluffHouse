@@ -21,7 +21,7 @@ export function draw(r:Room){const card=r.shoe[r.cursor];requireRule(card,'SHOE_
 export function startRound(r:Room,e:EngineOptions,now:number){
   r.round++;r.roundId=e.id();r.bettingId=e.id();r.phase='BETTING';r.deadline=now+RULES.bettingMs;
   r.decisionId=undefined;r.activePlayerId=undefined;r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.bluff=null;
-  for(const p of r.players){p.hand=[];p.status='waiting';p.wager=0;p.wagerId=undefined;p.bluffUsed=false;}
+  for(const p of r.players){p.hand=[];p.status=p.participating?'waiting':'observer';p.wager=0;p.wagerId=undefined;p.bluffUsed=false;}
   addEvent(r,e,'round',`Round ${r.round} · Place your wagers`,now);
 }
 export function startMatch(r:Room,e:EngineOptions,now:number){
@@ -67,7 +67,7 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
   switch(r.phase){
     case 'BETTING': {
       let wagers=0;
-      for(const p of r.players){if(p.wagerId&&p.wager){commit(p.account,p.wagerId);p.status='playing';wagers++;}else p.status='skipped';}
+      for(const p of r.players){if(p.wagerId&&p.wager){commit(p.account,p.wagerId);p.status='playing';wagers++;}else p.status=p.participating?'skipped':'observer';}
       if(!wagers){addEvent(r,e,'round','No wagers were placed.',at);settleRound(r,e,at);break;}
       r.shoe=e.shoe();r.cursor=0;
       for(let pass=0;pass<2;pass++){for(const p of r.players)if(p.status==='playing')p.hand.push(draw(r));r.dealer.push(draw(r));}

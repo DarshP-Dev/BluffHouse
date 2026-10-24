@@ -28,13 +28,14 @@ export class RoomManager {
   readonly e:EngineOptions;
   onChange:(room:Room)=>void=()=>{};
   onReaction:(room:Room,event:TableEvent)=>void=()=>{};
+  onClose:(room:Room)=>void=()=>{};
   constructor(readonly instanceId:string,options:Partial<EngineOptions>={},readonly maxRooms=20){this.e={now:options.now??(()=>Date.now()),id:options.id??randomUUID,shoe:options.shoe??makeShoe};}
   roomFor(id:string){return this.rooms.get(this.membership.get(id)??'');}
   snapshot(id:string):RoomView|null{const r=this.roomFor(id);return r?project(r,id,this.instanceId,this.e.now()):null;}
   private commit(previous:Room,candidate:Room){assertRoom(candidate);candidate.revision=previous.revision+1;this.rooms.set(candidate.instanceId,candidate);this.onChange(candidate);}
   private update(r:Room,fn:(candidate:Room)=>void){const candidate=structuredClone(r);fn(candidate);this.commit(r,candidate);return candidate;}
   private code(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';for(let i=0;i<100;i++){let code='';for(let n=0;n<6;n++)code+=chars[randomInt(chars.length)];if(!this.codes.has(code))return code;}throw new GameError('ROOM_LIMIT');}
-  private transferHost(r:Room,at:number){const next=r.players.filter(p=>p.connected&&!p.departed).sort((a,b)=>a.joinedAt-b.joinedAt||a.seat-b.seat)[0];r.hostId=next?.id??null;r.hostDeadline=null;if(next)addEvent(r,this.e,'host',`${next.name} is now the host.`,at,next.id);}
+  private transferHost(r:Room,at:number){const next=connected(r).sort((a,b)=>a.joinedAt-b.joinedAt||a.seat-b.seat)[0];r.hostId=next?.id??null;r.hostDeadline=null;if(next)addEvent(r,this.e,'host',`${next.name} is now the host.`,at,next.id);}
   private presenceRules(r:Room,at:number){
     const host=r.players.find(p=>p.id===r.hostId);
     if(!host||host.departed){this.transferHost(r,at);}else if(!host.connected){r.hostDeadline??=at+(r.phase==='LOBBY'?30000:60000);}else r.hostDeadline=null;
@@ -46,6 +47,7 @@ export class RoomManager {
   }
   presence(id:string,isConnected:boolean){
     this.reconcile();const r=this.roomFor(id);if(!r)return;
+    if(isConnected&&r.phase==='RESULTS')r.resultsSince=this.e.now();
     const p=r.players.find(p=>p.id===id);if(!p||p.departed||p.connected===isConnected)return;
     this.update(r,d=>{const player=d.players.find(p=>p.id===id)!;player.connected=isConnected;player.disconnectedAt=isConnected?null:this.e.now();if(!isConnected){player.ready=false;if(d.phase==='BLUFF_OFFER'&&d.bluff?.claimantId===id){cancelBluff(d,this.e,this.e.now(),'cancelled');addEvent(d,this.e,'bluff','Offer cancelled after claimant disconnect; reservation returned.',this.e.now(),id);}}addEvent(d,this.e,'presence',`${player.name} ${isConnected?'reconnected':'disconnected'}.`,this.e.now(),id);this.presenceRules(d,this.e.now());});
   }
@@ -53,7 +55,7 @@ export class RoomManager {
     let c:Command|undefined,recordKey:string|undefined,recordFingerprint:string|undefined;
     try {
       c=validateCommand(raw);this.reconcile();
-      if(c.type==='state:sync'){const r=this.roomFor(id);return {requestId:c.requestId,status:'ok',code:'SYNCED',currentRevision:r?.revision??0};}
+      if(c.type==='state:sync'){const r=this.roomFor(id);if(r?.phase==='RESULTS'&&r.players.some(p=>p.id===id&&p.connected&&!p.departed))r.resultsSince=this.e.now();return {requestId:c.requestId,status:'ok',code:'SYNCED',currentRevision:r?.revision??0};}
       const scope=c.roomInstanceId??'entry',key=`${id}|${scope}|${c.matchId??c.lobbyId??'entry'}|${c.requestId}`;
       const fingerprint=canonical(c),old=this.records.get(key);
       recordKey=key;recordFingerprint=fingerprint;
@@ -83,6 +85,7 @@ export class RoomManager {
           requireRule(now-(this.lastReaction.get(id)??-Infinity)>=1000,'REACTION_COOLDOWN','One reaction per second.');
           const ack:Ack={requestId:c.requestId,status:'ok',code:'OK',appliedRevision:r.revision,currentRevision:r.revision};
           this.lastReaction.set(id,now);this.records.set(key,{fingerprint,ack,roomId:r.instanceId});
+          if(r.phase==='RESULTS')r.resultsSince=now;
           this.onReaction(r,{id:this.e.id(),kind:'reaction',text:`${player.name} ${emoji}`,playerId:id,at:now,revision:r.revision});
           return ack;
         }
@@ -105,7 +108,7 @@ export class RoomManager {
               // Archive economic records outside the reset gameplay state.
               d.phase='LOBBY';d.lobbyId=this.e.id();d.matchId=undefined;d.roundId=undefined;d.round=0;d.initialChips=0;d.dealerNet=0;d.shoe=[];d.cursor=0;d.dealer=[];d.dealerRevealed=false;d.deadline=null;d.decisionId=undefined;d.bettingId=undefined;d.bluff=null;d.biggestBluff=null;d.bluffOutcomes=[];d.results=null;d.resultsSince=null;d.recoveryDeadline=null;d.terminationConfirmed=false;
               d.players=d.players.filter(p=>!p.departed);for(const player of d.players){player.account=account();player.hand=[];player.wager=0;player.wagerId=undefined;player.status='waiting';player.ready=false;player.participating=false;player.bluffUsed=false;player.bluffWins=0;player.bluffLosses=0;if(!player.connected)player.disconnectedAt=now;}
-              this.presenceRules(d,now);addEvent(d,this.e,'lobby','Back at the table. Ready up for a fresh match.',now);break;
+              d.hostDeadline=null;this.presenceRules(d,now);addEvent(d,this.e,'lobby','Back at the table. Ready up for a fresh match.',now);break;
             }
             default:requireRule(command.roundId===d.roundId,'STALE_ROUND');gameCommand(d,p,command,this.e,now);
           }
@@ -136,14 +139,15 @@ export class RoomManager {
         if(r.phase==='RESULTS'&&r.resultsSince!==null)due.push({kind:'cleanup',at:r.resultsSince+900000});
         due.sort((a,b)=>a.at-b.at||(a.kind==='recovery'?-1:1));const next=due[0];if(!next||next.at>now)break;
         if(next.kind==='cleanup'){
-          this.rooms.delete(r.instanceId);this.codes.delete(r.code);for(const [id,roomId] of this.membership)if(roomId===r.instanceId)this.membership.delete(id);for(const [key,record] of this.records)if(record.roomId===r.instanceId)this.records.delete(key);this.settlementArchive.delete(r.instanceId);break;
+          this.rooms.delete(r.instanceId);this.codes.delete(r.code);for(const [id,roomId] of this.membership)if(roomId===r.instanceId){this.membership.delete(id);this.lastReaction.delete(id);}for(const [key,record] of this.records)if(record.roomId===r.instanceId)this.records.delete(key);this.settlementArchive.delete(r.instanceId);this.onClose(r);break;
         }
         r=this.update(r,d=>{
           if(next.kind==='phase')deadlineTransition(d,this.e,next.at);
           else if(next.kind==='host')this.transferHost(d,next.at);
           else if(next.kind==='recovery'){d.recoveryDeadline=null;d.terminationConfirmed=true;if(d.phase==='WAITING_FOR_PLAYERS')roundBoundary(d,this.e,next.at);}
-          else if(next.kind==='seat'){d.players=d.players.filter(p=>p.id!==next.id);if(this.membership.get(next.id!)===d.instanceId)this.membership.delete(next.id!);if(d.hostId===next.id)this.transferHost(d,next.at);}
+          else if(next.kind==='seat'){d.players=d.players.filter(p=>p.id!==next.id);if(d.hostId===next.id)this.transferHost(d,next.at);}
         });
+        if(next.kind==='seat'&&this.membership.get(next.id!)===r.instanceId){this.membership.delete(next.id!);this.lastReaction.delete(next.id!);}
       }
     }
   }

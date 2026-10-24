@@ -131,7 +131,7 @@ function PlayerSeat({ player, room }: { player: PlayerView; room: RoomView }) {
 }
 
 function Standings({ room }: { room: RoomView }) {
-  const ordered = [...room.players].sort((a, b) => b.balance - a.balance || a.seat - b.seat);
+  const ordered = room.players.filter(player => player.status !== 'observer').sort((a, b) => b.balance - a.balance || a.seat - b.seat);
   return <section className="rail-section standings"><h2><span aria-hidden="true">♛</span> The standings</h2>{ordered.map((player, index) => <div className="standing-row" key={player.id}><span className="standing-rank">{index + 1}</span><Avatar player={player} size="avatar-tiny" /><span className="standing-name">{player.name}{player.id === room.viewerId && <small>YOU</small>}</span><strong>{chips(player.balance)}</strong></div>)}</section>;
 }
 
@@ -169,7 +169,7 @@ function Reactions({ state, disabled }: { state: ConnectionState; disabled: bool
 export function ActionPanel({ room, me, disabled, now }: { room: RoomView; me?: PlayerView; disabled: boolean; now: number }) {
   const [amount, setAmount] = useState(100);
   useEffect(() => { setAmount(100); }, [room.bettingId]);
-  const canBet = !!me && !me.departed && me.available + me.reserved >= 50;
+  const canBet = !!me && !me.departed && me.status !== 'observer' && me.available + me.reserved >= 50;
   const betting = room.phase === 'BETTING';
   const yourTurn = room.phase === 'PLAYER_TURN' && room.activePlayerId === room.viewerId;
   const deadlinePassed = room.deadline !== null && now >= room.deadline;

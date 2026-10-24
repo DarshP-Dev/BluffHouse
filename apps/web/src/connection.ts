@@ -117,7 +117,8 @@ function connectSocket(): Promise<void> {
 function envelope(type: CommandType, payload?: Record<string, unknown>): Command {
   const room = state.room;
   return {
-    requestId: crypto.randomUUID(), type, payload,
+    // getRandomValues also works on HTTP LAN origins, where randomUUID is absent.
+    requestId: Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join(''), type, payload,
     ...(room && {
       roomInstanceId: room.instanceId, lobbyId: room.lobbyId, matchId: room.matchId,
       roundId: room.roundId, decisionId: room.decisionId, bettingId: room.bettingId,

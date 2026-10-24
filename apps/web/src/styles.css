@@ -35,7 +35,7 @@ button { transition: background .16s, border-color .16s, transform .16s, box-sha
 .icon-button { border: 0; background: transparent; color: #bbb5a8; font-size: 24px; line-height: 1; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 4px; }
 .icon-button:hover { background: #ffffff0a; color: white; }
 .skip-link { position: fixed; top: -100px; left: 20px; padding: 15px 20px; color: #14110b; background: var(--gold); z-index: 100; }
-.skip-link:focus { top: 12px; }
+.skip-link:focus-visible { top: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; color: #eee6d5; font-family: var(--serif); font-size: 24px; font-weight: 600; line-height: .92; letter-spacing: .12em; }
 .brand-house { display: block; font-size: .72em; letter-spacing: .35em; margin-top: 7px; }
 .brand-mark { color: var(--gold); font-size: 45px; line-height: 1; }

@@ -26,6 +26,20 @@ npm start
 
 Open **http://localhost:3000**. No API keys, database, paid service, or real-money mechanism is needed. Optional local configuration belongs in ignored `.env`; see `.env.example`. Production requires an exact HTTPS `PUBLIC_ORIGIN`, `NODE_ENV=production`, `HOST=0.0.0.0`, and the provider's port. No hosting has been provisioned or deployed.
 
+## Try from another device on your LAN
+
+Use the main checkout. Find the PC's Wi-Fi/Ethernet IPv4 address with `ipconfig`, replace `<PC-LAN-IP>` below, and keep both devices on that network. Stop an existing server on the same port first. For the compiled app:
+
+```powershell
+$env:HOST = '0.0.0.0'
+$env:PUBLIC_ORIGIN = 'http://<PC-LAN-IP>:3000'
+npm start
+```
+
+Open that exact `PUBLIC_ORIGIN` address on **both** devices, including the host PC. For development, set `DEV_HOST=0.0.0.0`, use `PUBLIC_ORIGIN=http://<PC-LAN-IP>:5173`, and run `npm run dev`. The development backend can remain on `HOST=127.0.0.1`; Vite forwards its requests. `DEV_PORT` and backend `PORT` are configurable and default to 5173 and 3000. A website loading alone does not prove the game connection: create/join a room, ready both guests, start, and refresh during play. Browsers with different profiles/devices should get different seats.
+
+Plain HTTP LAN browsing now uses random request IDs supported outside secure contexts. Socket.IO polling accepts a matching Referer and exact Host when HTTP browsers omit Origin/Fetch Metadata; present foreign origins still fail. The server honors the configured origin instead of forcing localhost. Cookies remain HttpOnly/SameSite=Lax, with Secure required in HTTPS production. Clipboard access may be unavailable over HTTP; select and copy the displayed room code when prompted. If the PC address changes, update the configured origin and restart. Actual second-device confirmation is still required at the Classic checkpoint.
+
 ## Play and verification
 
 Use separate browser profiles, independent browsers, or Playwright's isolated contexts for different guests. Tabs in one profile share one HttpOnly guest cookie: the newest connection takes control and the previous tab is replaced. Host a room, share its six-character code, join, ready everyone, and let the host start.
@@ -53,6 +67,6 @@ Reservations stay inside a player's uncommitted balance; available chips exclude
 
 ## Current implementation boundary
 
-Slices 1–2 implement private rooms, guest sessions, funded Blackjack, Call My Bluff with atomic matched stakes, bounded reactions, three-round results, and same-room replay. Slice 2 passed type checking, 52 focused rule/integration tests, the production build, and two four-browser match tests covering safe and busted challenges. Full recovery regression and Party systems remain pending. A reported LAN connection failure is tracked for Slice 3; localhost verification does not establish cross-device readiness. The approved Party corrections remain recorded in the checklist: dealer-funded commissions, successful hidden busted bluffs in Shadow Draw, and a bounded two-contest six-round preset.
+Classic has passed type checking, all 176 unit/integration tests, the production build, and all 12 browser tests. These cover refresh, accepted-bluff recovery, tab replacement, lost acknowledgements/snapshots, host transfer, binding departures, early endings, cleanup, restart failure, replay, and HTTP LAN-origin admission. The learner tested separate profiles on one computer, reported no obvious gameplay issues, and approved continuing to Party. A physical second-device LAN retry remains an additional pending verification task. The approved Party corrections remain recorded in the checklist: dealer-funded commissions, successful hidden busted bluffs in Shadow Draw, and a bounded two-contest six-round preset.
 
-Rooms and guest credentials live in server memory. Restarting the backend loses them; the browser must show an unavailable-match recovery path, never silently insert new chips into a lost match. This is a local proof of concept, not durable account storage. No push or deployment is authorized by the build plan. Keep the private learner profile and local credentials out of Git.
+Rooms and guest credentials live in server memory. Restarting the backend loses them; the browser must show an unavailable-match recovery path, never silently insert new chips into a lost match. This is a local proof of concept, not durable account storage. The learner authorized normal fast-forward pushes of verified completed slices after inspecting their exact commits and private-file exclusions. Deployment and purchases require separate authorization. Keep the private learner profile and local credentials out of Git.

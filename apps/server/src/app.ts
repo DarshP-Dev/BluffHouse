@@ -15,6 +15,8 @@ export function createApp(options:AppOptions={}){
   const wallBase=Date.now(),monoBase=performance.now();
   const now=options.now??(()=>wallBase+performance.now()-monoBase);
   const instanceId=randomUUID(),origin=options.origin??'http://localhost:3000';
+  const publicUrl=new URL(origin);
+  if(publicUrl.origin!==origin||!['http:','https:'].includes(publicUrl.protocol))throw new Error('PUBLIC_ORIGIN must be an exact HTTP(S) origin without a path.');
   if(options.production&&!origin.startsWith('https://'))throw new Error('Production PUBLIC_ORIGIN must use HTTPS.');
   const app=express(),http=createServer(app),manager=new RoomManager(instanceId,{...options,now},options.maxRooms??20);
   const sessions=new Map<string,Guest>(),guests=new Map<string,Guest>();
@@ -45,14 +47,19 @@ export function createApp(options:AppOptions={}){
     res.json({ready:true,serverInstanceId:instanceId});
   });
   app.use('/api',(_req,res)=>res.status(404).json({error:'Unknown API route.'}));
-  // Same-origin polling GETs may omit Origin. Accept only browser-attested
-  // same-origin fetches on our exact Host; cross-origin handshakes require Origin.
-  const io=new Server(http,{maxHttpBufferSize:4096,cors:{origin,credentials:true},allowRequest:(req,done)=>done(null,
-    req.headers.origin===origin || (!req.headers.origin&&req.headers['sec-fetch-site']==='same-origin'&&req.headers.host===new URL(origin).host))});
+  // HTTP LAN polling omits Origin and Fetch Metadata. A same-origin Referer
+  // plus exact Host admits it; a present foreign Origin is always rejected.
+  const io=new Server(http,{maxHttpBufferSize:4096,cors:{origin,credentials:true},allowRequest:(req,done)=>{
+    if(req.headers.origin){done(null,req.headers.origin===origin);return;}
+    let sameReferer=false;try{sameReferer=new URL(req.headers.referer??'').origin===origin;}catch{}
+    const site=req.headers['sec-fetch-site'];
+    done(null,req.headers.host===publicUrl.host&&(site==='same-origin'||(!site&&sameReferer)));
+  }});
   io.use((socket,next)=>{const guest=cookieGuest(socket.request.headers.cookie);if(!guest)return next(new Error('Session unavailable. Return to the menu.'));socket.data.guest=guest;next();});
   const sendState=(guest:Guest)=>{const snapshot=manager.snapshot(guest.id);if(snapshot)guest.socket?.emit('room:state',snapshot);};
   manager.onChange=room=>{for(const p of room.players){const guest=guests.get(p.id);if(guest&&!p.departed&&p.connected&&manager.membership.get(p.id)===room.instanceId)sendState(guest);}};
   manager.onReaction=(room,event)=>{for(const p of room.players)if(p.connected&&!p.departed&&manager.membership.get(p.id)===room.instanceId)guests.get(p.id)?.socket?.emit('room:reaction',{roomInstanceId:room.instanceId,event});};
+  manager.onClose=room=>{for(const p of room.players)if(!p.departed)guests.get(p.id)?.socket?.emit('recovery:error',{message:'This inactive table has closed. Return to the menu to start again.'});};
   io.on('connection',socket=>{
     const guest=socket.data.guest as Guest,old=guest.socket,generation=++guest.generation;guest.socket=socket;guest.lastSeen=now();
     if(old&&old!==socket){old.emit('session:replaced',{message:'Session opened elsewhere.'});old.disconnect(true);}
