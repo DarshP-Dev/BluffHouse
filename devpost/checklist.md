@@ -182,7 +182,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: After one House round, vote from enough non-House profiles, play Last Stand, and confirm the resulting crown and next round's commissions follow the winner.
   Commit: `feat: add House overthrow votes and Last Stand`
 
-- [ ] **8. Receive and play funded Chaos wager cards**
+- [x] **8. Receive and play funded Chaos wager cards**
   Becomes usable: Trailing players receive actual inventory and can activate Double/Triple Down Chaos, Pot Twist, and Emergency Fund within disclosed legal windows.
   Why now: Depends on Party lifecycle and ledger; first tests controlled monetary effects before hand-altering interactions.
   PRD ref: `prd.md > Deferred From the POC`; `vision.md > 7. Chaos Cards`; proposed `Chaos distribution and effects` and finite-reserve rules.
@@ -397,6 +397,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run typecheck` passed. Required Chaos/ledger focused tests passed **35 tests / 3 files**. `npm test` passed **413 tests / 21 files**. Cases cover ties/capacity/absence/final-round exclusions, actual earned-card reconnect, exact activation/opt-in boundaries, once-only consumption, stale/foreign requests, funded 500/750-chip payouts, 3:2 profits and commission, multiplier removal, optional recipients, reserve exhaustion/races, early recovery drainage and whole-match conservation through results/replay. Existing RNG assertions now isolate duel randomness after real Chaos grants rather than disabling grants.
 - Fresh production build and `npm run test:e2e -- tests/e2e/chaos.spec.ts tests/e2e/match.spec.ts` passed **4 browser tests**. Four guests genuinely earn distinct cards, fund double/triple wagers, opt into Pot Twist, refresh, and settle full natural returns with separate commissions. A second flow earns Emergency cards after actual losses, exhausts the finite reserve, and confirms consumed allowances across refresh/withdrawal. Both Classic bluff journeys remain passing.
 - Inspected mobile inventory and desktop Pot Twist screenshots; no horizontal overflow. Fixed the interrupted test's optional-fixture TypeScript annotation before verification. Physical second-device LAN confirmation remains pending; no deployment or purchase occurred.
+- Verified implementation commit: `0527de9`. Next slice: Hand Swap, Table Turn and Second Chance with protected cards/decisions.
 
 ## Revisions
 
