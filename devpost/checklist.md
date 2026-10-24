@@ -192,7 +192,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: Use the visible Party rules to play a received card, inspect funded extra stake or reserve award, and try an unavailable action to see a clear reason.
   Commit: `feat: add funded Chaos inventory and wager effects`
 
-- [ ] **9. Swap, rotate, and redraw hands safely**
+- [x] **9. Swap, rotate, and redraw hands safely**
   Becomes usable: Hand Swap, Table Turn, and Second Chance affect actual Blackjack hands while preserving prior challenge truth and funding.
   Why now: Depends on slice 8's registry and the core's protected reveal/decision model; isolate the riskiest card interactions in their own playable increment.
   PRD ref: `prd.md > Blackjack Rules and Player Turns`, `Call My Bluff Reveal and Settlement`, `Deferred From the POC`; proposed hand-movement and redraw rules.
@@ -406,7 +406,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - Public snapshots provide current eligible targets and clear targets after resolution or owner ineligibility. The UI exposes server-derived reasons, target selection, movement deadlines, public discards and expanded How to Play limits. Failed requests spend no card or round allowance. Replay resets all hand-window, marker and discard state.
 - `npm run typecheck` passed. The required focused command passed **113 tests / 4 files**; `npm test` passed **474 tests / 22 files**. New cases cover swaps/rotation at 2–6 seats, natural/dealer/disconnected exclusions, stale/foreign/duplicate commands, competing movements, 4,999ms and exact boundaries, fractional production clocks, ordinary-hit refresh, shoe exhaustion rollback, no bust undo or accepted-challenge rewrite, single consumption, post-effect payouts and replay. The full suite required local networking permission; its authorized rerun passed.
 - Production build and `npm run test:e2e -- tests/e2e/chaos-hands.spec.ts tests/e2e/match.spec.ts` passed **4 browser tests**. Four isolated guests earn real movement/redraw cards, swap and rotate actual hands, refresh eligible decisions, replace an ordinary Hit, observe public discards and preserve funded payouts. The two Classic bluff journeys remain passing. Additional hand/monetary-Chaos/House browser checks passed **5 tests**.
-- Inspected the 390px hand-window layout and desktop discard screenshot; no horizontal overflow. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Next slice: funded bounties, six-round Party and bounded sequential social contests.
+- Inspected the 390px hand-window layout and desktop discard screenshot; no horizontal overflow. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Verified implementation commit: `93a60bf`. Next slice: funded bounties, six-round Party and bounded sequential social contests.
 
 ## Revisions
 
