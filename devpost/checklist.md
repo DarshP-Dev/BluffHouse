@@ -202,7 +202,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: In Party play, move eligible hands before turns and redraw a legal ordinary hit; verify wagers stay with their owners and protected hands/actions explain why they are unavailable.
   Commit: `feat: add validated hand-changing Chaos cards`
 
-- [ ] **10. Fund bounties and win three defenses**
+- [x] **10. Fund bounties and win three defenses**
   Becomes usable: Players fund a real bounty, duel its target, and receive exact funded rewards for a defeat or three successful defenses.
   Why now: Depends on the shared duel engine and Vault ledger; add the six-round Party preset here so three defenses are achievable instead of presenting an impossible feature in a three-round match.
   PRD ref: `prd.md > Deferred From the POC`; `vision.md > 5. Bounty Board`; proposed `Bounties and Split or Steal` rules and Party round preset.
@@ -416,7 +416,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - All normal and early endings refund unresolved contributions to their original contributors before rankings, including departed players. Invariants bind contribution escrows, qualifying duel history, streaks, payout recipients and typed award/Vault/refund records. A whole-match sequence combines auction funding, full Blackjack returns and commissions, a 127/23 bounty split, a second ordinary contest, Emergency Fund, final refunds, Vault remainders and replay with exact conservation.
 - `npm run typecheck` passed. Required bounty/ledger/lifecycle tests passed **104 tests / 4 files**; `npm test` passed **552 tests / 24 files**. Coverage includes contributor races/caps, self/foreign/stale requests, insufficient opportunities/funds, reserved defender funds released on acceptance, three real defenses over six rounds, draw/refusal behavior, accepted disconnect, exact 85/15 rounding for every legal total, normal/early refunds, results/replay and Classic regression.
 - Production build and `npm run test:e2e -- tests/e2e/bounties.spec.ts tests/e2e/match.spec.ts` passed **4 browser tests**. Four guests select six rounds, observe readiness reset, fund bounties, refresh during owned escrow/live defense, win three defenses, play two sequential contests, finish six rounds and receive unresolved refunds before replay. Separate defeat evidence verifies the exact 127-chip award and 23-chip Vault transfer. Both Classic bluff journeys remain passing. An initial browser locator mismatch was corrected against the accessible combobox names before rerunning.
-- Mobile bounty and desktop final-settlement layouts were inspected. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Next slice: funded Split-or-Steal contracts with hidden choices and finite cooperation bonuses.
+- Mobile bounty and desktop final-settlement layouts were inspected. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Verified implementation commit: `23e2ce8`. Next slice: funded Split-or-Steal contracts with hidden choices and finite cooperation bonuses.
 
 ## Revisions
 
