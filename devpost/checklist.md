@@ -152,7 +152,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: In final exploration, select Party, submit different hidden bids from two profiles, observe the reveal and crown, then compare a winner's full payout and the House's separate bank-funded commission.
   Commit: `feat: add sealed House auctions and funded commissions`
 
-- [ ] **5. Duel friends in Rock Paper Scissors and Coin Flip**
+- [x] **5. Duel friends in Rock Paper Scissors and Coin Flip**
   Becomes usable: Funded direct challenges during a bounded social interval, defender-selected minigames, table-wide viewing, real outcomes and payouts.
   Why now: Depends on slice 4's Party boundaries and extended ledger; establishes the reusable contest lifecycle for board games, overthrows, and bounties.
   PRD ref: `prd.md > Deferred From the POC`, `Shared Reactions and Announcements`; `roadmap.md > Retained Systems`; proposed `Direct duels and minigames` rules.
@@ -365,6 +365,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run typecheck` passed. Required focused duel/ledger command passed **51 tests / 3 files**; combined duel/House checks passed **79 / 4**. `npm test` passed **276 tests / 16 files**. Whole-match evidence combines a funded auction, full Blackjack returns, bank commissions, Coin Flip, RPS, all three rounds and the final Vault distribution with exact conserved totals.
 - Production build and Playwright duel/House/Classic journeys passed **5 tests**. Four guests exercise hidden locks, refresh, spectators, full pot results, next-round continuation, a second duel and final statistics. A funded low-balance browser case covers decline, expiry and accepting an incoming duel while outgoing funds are reserved. Both Classic bluff outcomes and House replay remain passing. A focused countdown regression also passes after clamping the displayed clock to the latest server time; phase/throw deadlines agree and never display more than the published duration.
 - Inspected 390px spectator and desktop settlement screenshots; no page overflow. Physical cross-device LAN testing remains pending. No deployment or purchase occurred.
+- Verified implementation commit: `6683137`. Next slice: timed Connect 4 and Bullet Chess using the funded contest lifecycle.
 
 ## Revisions
 
