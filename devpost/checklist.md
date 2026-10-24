@@ -212,7 +212,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: In a six-round Party room, contribute to a target, observe a qualifying defense and its streak, then inspect a bounty award or loss allocation.
   Commit: `feat: add funded bounties and defense streaks`
 
-- [ ] **11. Make and betray Split-or-Steal deals**
+- [x] **11. Make and betray Split-or-Steal deals**
   Becomes usable: Two players fund a contract, lock secret decisions, and watch the actual pot/bonus/Vault result.
   Why now: Depends on escrow, private projection, room-wide event admission, and finite reserve; extends social strategy without changing live Blackjack actions.
   PRD ref: `prd.md > Deferred From the POC`; `vision.md > 6. Deals and Betrayals`; proposed `Bounties and Split or Steal` rules.
@@ -425,7 +425,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - Contracts use the existing one-event slot, fresh admission scopes and immutable social deadline, with two-second results and the verified second-slot gate. Early endings drain accepted decisions before rankings. Invariants bind principal escrow, separate bonus credits, exact Vault transfers, private/settled history, accepted pair uniqueness and cross-system contest exclusion. A six-round ledger sequence combines auction funding, cooperation, betrayal, both-Steal Vault funding, unresolved bounty refunds, final remainder shares and replay with exact totals.
 - `npm run typecheck` passed. Required deal/ledger tests passed **80 tests / 3 files**; `npm test` passed **629 tests / 26 files**. Cases cover all four outcomes and wager sizes, reserve exhaustion/odd remainder, hidden payloads, post-lock changes, one/both missing choices, exact deadlines, stale/duplicate/conflicting requests, insufficient funds and rollback, competing duel/bounty/Last Stand admission, pair caps, private reconnect, accepted disconnect/departure, low-player drainage, final rankings and replay.
 - Fresh production build and the final deal/Classic browser contract passed **5 tests**. Four guests play all four outcomes through sequential slots, inspect private lock snapshots, refresh, observe exact reserve/pot/Vault credits, finish and replay. Another flow covers rejected/expired offers and one/both missing choices with an offline participant. Both Classic bluff journeys remain passing. Review corrected an inherited UI gate that hid second-slot invitations after a settled Last Stand; a real browser regression follows that role contest with a funded contract and confirms ordinary duel controls remain enabled. Final explanatory copy was rebuilt after verification.
-- Inspected mobile private-lock and desktop Vault/history layouts; no overflow. The final polish slice will prioritize active decisions above idle panels on mobile. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Next slice: private-hand Vault finale and Shadow Draw.
+- Inspected mobile private-lock and desktop Vault/history layouts; no overflow. The final polish slice will prioritize active decisions above idle panels on mobile. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Verified implementation commit: `0fe2f71`. Next slice: private-hand Vault finale and Shadow Draw.
 
 ## Revisions
 
