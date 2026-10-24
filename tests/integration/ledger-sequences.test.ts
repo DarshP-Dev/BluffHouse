@@ -4,6 +4,25 @@ import {assertRoom} from '../../apps/server/src/game/engine.js';
 import {fixture} from '../fixtures/core.js';
 
 describe('conserved whole-match Party ledger sequences',()=>{
+  it('conserves cooperation bonuses, betrayed pots, deal-funded Vault chips and bounty refunds across six rounds',()=>{
+    const f=fixture({mode:'PARTY',rounds:6,players:3});f.start();expect(f.send(f.host,'house:bid',{amount:100}).status).toBe('ok');f.advance(22000);f.advance(RULES.bettingMs+RULES.resultMs);
+    expect(f.send(f.actors[2]!,'bounty:contribute',{targetId:f.actors[1],amount:150}).status).toBe('ok');
+    const deal=(from:number,to:number,amount:number,a:'SPLIT'|'STEAL',b:'SPLIT'|'STEAL')=>{
+      expect(f.send(f.actors[from]!,'deal:offer',{defenderId:f.actors[to],amount}).status).toBe('ok');const offer=f.view().party!.social!.dealInvites.at(-1)!;
+      expect(f.send(f.actors[to]!,'deal:accept',undefined,{dealOfferId:offer.id}).status).toBe('ok');
+      expect(f.send(f.actors[from]!,'deal:choose',{choice:a}).status).toBe('ok');expect(f.send(f.actors[to]!,'deal:choose',{choice:b}).status).toBe('ok');assertRoom(f.room());
+    };
+    deal(0,1,100,'SPLIT','SPLIT');expect(f.view().players.map(p=>p.balance)).toEqual([910,1010,850]);expect(f.view().party!.bonusReserve).toBe(280);f.advance(2000);
+    expect(f.view().party!.social!.slot).toBe(2);deal(1,2,50,'STEAL','STEAL');expect(f.view().party!.vault).toBe(200);f.advance(2000);f.advance(RULES.bettingMs+RULES.resultMs);
+    const before=structuredClone(f.room());expect(f.send(f.host,'deal:offer',{defenderId:f.actors[1],amount:50}).status).toBe('rejected');expect(f.room()).toEqual(before);
+    deal(0,2,50,'SPLIT','STEAL');expect(f.view().players.map(p=>p.balance)).toEqual([860,960,850]);
+    for(let n=0;n<50&&f.view().phase!=='RESULTS';n++){const v=f.view();f.advance(v.deadline!-v.serverTime);assertRoom(f.room());}
+    expect(f.view()).toMatchObject({phase:'RESULTS',round:6});expect(f.view().players.map(p=>p.balance)).toEqual([927,1027,1066]);
+    expect(f.room().dealerNet).toBe(0);expect(f.view().party).toMatchObject({bonusReserve:280,vault:0});expect(f.view().party!.bounties[0]!.status).toBe('refunded');
+    expect(f.view().party!.dealHistory).toHaveLength(3);expect(f.view().party!.transfers.filter(t=>t.kind==='deal_bonus').reduce((n,t)=>n+t.amount,0)).toBe(20);expect(f.view().party!.transfers.filter(t=>t.kind==='deal_vault').reduce((n,t)=>n+t.amount,0)).toBe(100);
+    expect(f.view().party!.transfers.filter(t=>t.kind==='commission')).toEqual([]);expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);expect(f.room().players.flatMap(p=>Object.values(p.account.reservations))).toEqual([]);assertRoom(f.room());
+    expect(f.send(f.host,'results:return').status).toBe('ok');f.start();expect(f.view().party!.dealHistory).toEqual([]);expect(f.view().party!.bonusReserve).toBe(300);
+  });
   it('conserves six-round bounty rewards, sequential duel stakes, bonus funding and contributor refunds through final rankings',()=>{
     const f=fixture({mode:'PARTY',rounds:6,players:4,ranks:['10','10','10','10','10','8','8','8','8','7']});
     f.start();expect(f.send(f.host,'house:bid',{amount:100}).status).toBe('ok');f.advance(22000);f.bet();f.deal();

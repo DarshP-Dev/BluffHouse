@@ -4,6 +4,7 @@ import {available,reserved} from './game/ledger.js';
 import type {Room,DuelState} from './game/state.js';
 import {projectChaos} from './game/chaos.js';
 import {projectBounties,remainingBountyIntervals} from './game/bounties.js';
+import {projectDeal,projectDealHistory} from './game/deals.js';
 
 function duelView(d:DuelState,viewerId:string):DuelView {
   // Current simultaneous choices are private; completed throws are public.
@@ -17,8 +18,9 @@ function partyView(r:Room,viewerId:string,sealed:boolean):PartyView|null {
     chaos:projectChaos(r,viewerId),bounties:projectBounties(r),bountyOpportunities:remainingBountyIntervals(r),
     vault:party.vault,bonusReserve:party.bonusReserve,initialBonusReserve:party.initialBonusReserve,transfers:party.transfers.map(t=>({...t})),
     auction:{id:party.auction.id,deadline:party.auction.deadline,status:party.auction.status,winnerId:party.auction.winnerId,winningBid:party.auction.winningBid,bids:r.players.filter(p=>p.participating).map(p=>({playerId:p.id,submitted:Object.hasOwn(party.auction.bids,p.id),...(!sealed||p.id===viewerId?{amount:party.auction.bids[p.id]??0}:{})}))},
-    social:party.social?{id:party.social.id,slotId:party.social.slotId,slot:party.social.slot,slotOpenedAt:party.social.slotOpenedAt,openedAt:party.social.openedAt,admissionDeadline:party.social.admissionDeadline,hardDeadline:party.social.hardDeadline,invites:party.social.invites.map(i=>({...i})),duel:party.social.duel?duelView(party.social.duel,viewerId):null,ballot:party.social.ballot?structuredClone(party.social.ballot):null}:null,
+    social:party.social?{id:party.social.id,slotId:party.social.slotId,slot:party.social.slot,slotOpenedAt:party.social.slotOpenedAt,openedAt:party.social.openedAt,admissionDeadline:party.social.admissionDeadline,hardDeadline:party.social.hardDeadline,invites:party.social.invites.map(i=>({...i})),dealInvites:party.social.dealInvites.map(i=>({...i})),deal:party.social.deal?projectDeal(party.social.deal,viewerId):null,duel:party.social.duel?duelView(party.social.duel,viewerId):null,ballot:party.social.ballot?structuredClone(party.social.ballot):null}:null,
     duelHistory:party.duelHistory.map(d=>duelView(d,viewerId)),
+    dealHistory:projectDealHistory(r,viewerId),
     duelStats:r.players.filter(p=>p.participating).map(p=>{const history=party.duelHistory.filter(d=>d.inviterId===p.id||d.defenderId===p.id);return {playerId:p.id,wins:history.filter(d=>d.winnerId===p.id).length,losses:history.filter(d=>d.winnerId!==null&&d.winnerId!==p.id).length,draws:history.filter(d=>d.winnerId===null).length};})
   };
 }

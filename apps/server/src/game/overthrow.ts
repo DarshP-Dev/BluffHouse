@@ -1,6 +1,7 @@
 import type {BallotView,Command} from '@bluff-house/shared';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 import {cancelSocialInvites,refreshSocialDeadline,startDuel} from './duels.js';
+import {cancelDealOffers} from './deals.js';
 
 const connected=(r:Room)=>r.players.filter(p=>p.participating&&p.connected&&!p.departed);
 export const overthrowThreshold=(eligible:number)=>Math.ceil(eligible*0.75);
@@ -29,7 +30,7 @@ export function resolveBallot(r:Room,e:EngineOptions,now:number){
   requireRule(now+8000+60000+2000<=social.hardDeadline,'INSUFFICIENT_SOCIAL_TIME');
   const index=e.randomIndex(candidates.length);requireRule(Number.isInteger(index)&&index>=0&&index<candidates.length,'INVALID_RANDOM_INDEX');
   ballot.challengerId=candidates[index].id;ballot.status='selecting';ballot.deadline=now+8000;
-  cancelSocialInvites(r);r.phase='LAST_STAND_CHOICE';r.deadline=ballot.deadline;
+  cancelSocialInvites(r);cancelDealOffers(r);r.phase='LAST_STAND_CHOICE';r.deadline=ballot.deadline;
   event(r,e,`Overthrow passes. ${candidates[index].name} challenges the House in a zero-stake Last Stand. The House has eight seconds to choose a game.`,now,ballot.challengerId);
 }
 export function overthrowCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
@@ -37,7 +38,7 @@ export function overthrowCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:n
   requireRule(c.socialId===social.id,'STALE_SOCIAL');requireRule(p.participating&&p.connected&&!p.departed,'NOT_PARTICIPATING');
   if(c.type==='house:ballot'){
     requireRule(c.socialSlotId===social.slotId,'STALE_SOCIAL_SLOT','This social admission slot has changed.');
-    requireRule(r.phase==='SOCIAL'&&!social.duel&&now<social.admissionDeadline,'ADMISSION_CLOSED');
+    requireRule(r.phase==='SOCIAL'&&!social.duel&&!social.deal&&now<social.admissionDeadline,'ADMISSION_CLOSED');
     requireRule(!r.terminationConfirmed&&connected(r).length>=2,'NOT_ENOUGH_PLAYERS');
     requireRule(party.houseId&&p.id!==party.houseId,'NOT_ELIGIBLE_VOTER');
     requireRule(r.round>=party.houseSinceRound+1,'HOUSE_TENURE');requireRule(!social.ballot,'BALLOT_ALREADY_USED');
@@ -91,7 +92,7 @@ export function assertBallots(r:Room){
     if(b.status==='settled')requireRule(b.winnerId===b.houseId||b.winnerId===b.challengerId,'BALLOT_WINNER_INVARIANT');
   }
   const social=party.social,ballot=social?.ballot;
-  if(ballot?.status==='open')requireRule(r.phase==='SOCIAL'&&!social!.duel&&ballot.deadline<=social!.admissionDeadline,'LIVE_BALLOT_INVARIANT');
-  if(ballot?.status==='selecting')requireRule(r.phase==='LAST_STAND_CHOICE'&&!social!.duel&&ballot.deadline+62000<=social!.hardDeadline,'LAST_STAND_SELECTION_INVARIANT');
+  if(ballot?.status==='open')requireRule(r.phase==='SOCIAL'&&!social!.duel&&!social!.deal&&ballot.deadline<=social!.admissionDeadline,'LIVE_BALLOT_INVARIANT');
+  if(ballot?.status==='selecting')requireRule(r.phase==='LAST_STAND_CHOICE'&&!social!.duel&&!social!.deal&&ballot.deadline+62000<=social!.hardDeadline,'LAST_STAND_SELECTION_INVARIANT');
   if(ballot?.status==='playing')requireRule(r.phase==='DUEL'&&social!.duel?.purpose==='LAST_STAND'&&social!.duel.ballotId===ballot.id,'LIVE_LAST_STAND_INVARIANT');
 }

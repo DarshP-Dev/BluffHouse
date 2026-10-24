@@ -114,7 +114,7 @@ function connectSocket(): Promise<void> {
   });
 }
 
-function envelope(type: CommandType, payload?: Record<string, unknown>, context?: Pick<Command, 'inviteId'>): Command {
+function envelope(type: CommandType, payload?: Record<string, unknown>, context?: Pick<Command, 'inviteId' | 'dealOfferId'>): Command {
   const room = state.room;
   return {
     // getRandomValues also works on HTTP LAN origins, where randomUUID is absent.
@@ -126,7 +126,7 @@ function envelope(type: CommandType, payload?: Record<string, unknown>, context?
       socialId: room.party?.social?.id, socialSlotId: room.party?.social?.slotId, duelId: room.party?.social?.duel?.id,
       throwId: room.party?.social?.duel?.throwId,
       moveId: room.party?.social?.duel?.connect4?.moveId ?? room.party?.social?.duel?.chess?.moveId,
-      ballotId: room.party?.social?.ballot?.id,
+      ballotId: room.party?.social?.ballot?.id, dealId: room.party?.social?.deal?.id,
       chaosWindowId: room.phase === 'HAND_CHAOS' ? room.party?.chaos.handWindow?.id : room.party?.chaos.potTwist?.id,
     }),
     ...context,
@@ -143,7 +143,7 @@ function syncState() {
 }
 
 /** Every click has one request ID. Unknown outcomes trigger a snapshot, never a new-ID retry. */
-export async function sendCommand(type: CommandType, payload?: Record<string, unknown>, context?: Pick<Command, 'inviteId'>): Promise<boolean> {
+export async function sendCommand(type: CommandType, payload?: Record<string, unknown>, context?: Pick<Command, 'inviteId' | 'dealOfferId'>): Promise<boolean> {
   if (!socket?.connected || state.status !== 'connected') {
     publish({ error: 'Wait until the connection is restored before taking an action.' });
     return false;

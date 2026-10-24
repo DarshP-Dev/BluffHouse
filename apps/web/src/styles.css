@@ -744,3 +744,26 @@ button { transition: background .16s, border-color .16s, transform .16s, box-sha
 .social-slot-budget > span:first-child { margin-right: auto; font-weight: 600; }
 .bounty-duel-note { padding: 12px; border-left: 2px solid #b99a5b; color: #ddc68d; background: #342f22; }
 @media (max-width: 620px) { .bounty-board { padding: 16px; } .bounty-list { grid-template-columns: 1fr; } .bounty-card, .bounty-funding { padding: 15px; } .bounty-opportunities { max-width: 110px; line-height: 1.5; } }
+
+.deal-panel { margin: 24px 0; padding: 24px; border: 1px solid #8a7253; border-radius: 12px; background: linear-gradient(135deg, #30241f, #21231e); min-width: 0; }
+.deal-panel h2 { font: 29px/1.35 var(--serif); color: #f0d09c; margin: 18px 0; }
+.deal-panel p, .deal-history p { color: #d2c3ac; font-size: 13px; line-height: 1.8; }
+.deal-bonus-disclosure { padding: 14px; background: #181d1699; border-left: 2px solid #bca069; }
+.deal-offer-controls { display: grid; gap: 15px; margin: 20px 0; }
+.deal-offer-controls label { font-size: 12px; color: #d8c8ad; }
+.deal-offer-controls select { display: block; width: 100%; margin-top: 8px; padding: 12px; border: 1px solid #8a7451; background: #1b231c; color: #efdec2; font: inherit; border-radius: 5px; }
+.deal-outgoing, .deal-incoming { padding: 18px; border: 1px solid #856e4b; border-radius: 8px; background: #3b3022; }
+.deal-incoming { margin: 18px 0; } .deal-incoming h3 { font: 24px/1.4 var(--serif); color: #edd09d; margin: 0; }
+.deal-matchup { font-size: 16px !important; color: #e5d0aa !important; } .deal-matchup > span { color: #b6ab93; }
+.deal-locks { display: flex; gap: 16px; justify-content: space-between; padding: 16px; background: #151b1699; border-radius: 6px; color: #c7c1ae; font-size: 12px; }
+.deal-locks > span { line-height: 1.7; } .deal-locks strong { color: #e5c38c; }
+.deal-choices { display: flex; gap: 14px; margin: 20px 0; } .deal-choices .button { flex: 1; justify-content: center; }
+.deal-private { color: #d9dba8 !important; }
+.deal-reveal { padding: 18px; border: 1px solid #9f8956; border-radius: 8px; background: #2a3220; }
+.deal-reveal h3 { margin-top: 0; font: 26px/1.4 var(--serif); color: #efd59e; }
+.deal-revealed-choices > div { display: flex; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid #ffffff15; color: #d6ceb8; font-size: 13px; }
+.deal-history { margin: 24px 0; padding: 20px; border: 1px solid #655c43; border-radius: 8px; background: #1a1c17; min-width: 0; }
+.deal-history h2 { font: 25px/1.4 var(--serif); color: #e6cba0; margin-top: 0; } .deal-history summary { color: #d6c3a0; font-size: 13px; cursor: pointer; padding: 10px 0; }
+.deal-history article { padding: 14px 0; border-bottom: 1px solid #ffffff15; } .deal-history article > strong { color: #dbc8a6; font-size: 13px; } .deal-history small { color: #afa894; font-size: 11px; line-height: 1.7; }
+.deal-statistics { margin-top: 16px; } .deal-statistics > div { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid #ffffff13; color: #bdb5a2; font-size: 12px; } .deal-statistics strong { color: #e1d2b4; }
+@media (max-width: 620px) { .deal-panel { padding: 16px; } .deal-panel h2 { font-size: 25px; } .deal-locks, .deal-choices { flex-wrap: wrap; } .deal-locks > span { flex: 1; min-width: 100px; } .deal-reveal { padding: 14px; } .deal-revealed-choices > div { flex-wrap: wrap; } .deal-reveal h3 { font-size: 23px; } .deal-history { padding: 16px; } }

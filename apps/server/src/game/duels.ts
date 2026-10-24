@@ -5,6 +5,7 @@ import {createConnect4,moveConnect4} from './connect4.js';
 import {createChess,moveChess,chessTimeout,restoreChess} from './chess.js';
 import {assertBallots,failBallot,overthrowDeadline,settleLastStand} from './overthrow.js';
 import {validateBountyDefense,acceptBountyDefense,settleBountyDefense} from './bounties.js';
+import {cancelDealOffers,cancelPlayerDealOffers,expireDealOffers} from './deals.js';
 
 const ADMISSION_MS=20000,INVITE_MS=8000,PLAY_MS=60000,THROW_MS=8000,SUMMARY_MS=2000,SOCIAL_MS=90000;
 const stakeKey=(id:string,playerId:string)=>`${id}:${playerId}:duel`;
@@ -16,7 +17,7 @@ function event(r:Room,e:EngineOptions,text:string,at:number,playerId?:string){
 function player(r:Room,id:string){const p=r.players.find(p=>p.id===id);requireRule(p,'PLAYER_MISSING');return p;}
 export function refreshSocialDeadline(r:Room){
   const social=r.party!.social!;
-  r.deadline=Math.min(social.admissionDeadline,social.hardDeadline,...social.invites.filter(i=>i.status==='pending').map(i=>i.deadline),...(social.ballot?.status==='open'?[social.ballot.deadline]:[]));
+  r.deadline=Math.min(social.admissionDeadline,social.hardDeadline,...social.invites.filter(i=>i.status==='pending').map(i=>i.deadline),...social.dealInvites.filter(i=>i.status==='pending').map(i=>i.deadline),...(social.ballot?.status==='open'?[social.ballot.deadline]:[]));
 }
 function cancelInvite(r:Room,invite:DuelInvite,status:'expired'|'rejected'|'cancelled'){
   if(invite.status!=='pending')return;
@@ -29,7 +30,7 @@ export function openSocial(r:Room,e:EngineOptions,now:number){
   requireRule(r.mode==='PARTY'&&r.party,'PARTY_REQUIRED');requireRule(!r.party.social,'SOCIAL_ALREADY_OPEN');
   requireRule(!r.terminationConfirmed&&participants(r).length>=2,'NOT_ENOUGH_PLAYERS');
   r.party.socialRound=r.round;
-  r.party.social={id:e.id(),slotId:e.id(),openedAt:now,slot:1,slotOpenedAt:now,admissionDeadline:now+ADMISSION_MS,hardDeadline:now+(r.roundLimit===6?SOCIAL_MS*2:SOCIAL_MS),invites:[],duel:null,ballot:null};
+  r.party.social={id:e.id(),slotId:e.id(),openedAt:now,slot:1,slotOpenedAt:now,admissionDeadline:now+ADMISSION_MS,hardDeadline:now+(r.roundLimit===6?SOCIAL_MS*2:SOCIAL_MS),invites:[],duel:null,ballot:null,dealInvites:[],deal:null};
   r.phase='SOCIAL';r.deadline=now+ADMISSION_MS;r.activePlayerId=undefined;r.decisionId=undefined;
   event(r,e,'Social interval · Invite a player to a funded duel. The defender chooses the game.',now);
 }
@@ -73,7 +74,7 @@ function finishThrow(r:Room,d:DuelState,e:EngineOptions,now:number){
 /** Both funded duels and crown-only Last Stands use the same rules and clocks. */
 export function startDuel(r:Room,e:EngineOptions,now:number,setup:Pick<DuelState,'id'|'game'|'inviterId'|'defenderId'|'amount'|'purpose'|'ballotId'|'bountyId'>,coinSide?:'HEADS'|'TAILS'){
   const social=r.party!.social!,{game,inviterId,defenderId}=setup;
-  requireRule(!social.duel,'DUEL_ALREADY_STARTED');
+  requireRule(!social.duel&&!social.deal,'DUEL_ALREADY_STARTED');
   const duel:DuelState={...setup,socialId:social.id,slot:social.slot,status:'playing',startedAt:now,hardDeadline:now+PLAY_MS,deadline:now+THROW_MS,throwNumber:game==='RPS'?1:0,scores:{[inviterId]:0,[defenderId]:0},choices:{},throws:[],winnerId:null};
   social.duel=duel;r.phase='DUEL';r.deadline=duel.deadline;
   if(duel.purpose==='LAST_STAND')event(r,e,`The House chooses ${gameName(duel)} for the zero-stake Last Stand.`,now,defenderId);
@@ -96,9 +97,9 @@ export function startDuel(r:Room,e:EngineOptions,now:number,setup:Pick<DuelState
 
 /** Shared admission/funding for ordinary invitations and matched bounty defenses. */
 export function inviteDuel(r:Room,p:Player,defenderId:unknown,amount:unknown,e:EngineOptions,now:number,meta:Pick<DuelInvite,'purpose'|'bountyId'>={}){
-  const social=r.party?.social;requireRule(social&&r.phase==='SOCIAL'&&!social.duel&&now<social.admissionDeadline,'ADMISSION_CLOSED');
+  const social=r.party?.social;requireRule(social&&r.phase==='SOCIAL'&&!social.duel&&!social.deal&&now<social.admissionDeadline,'ADMISSION_CLOSED');
   requireRule(!r.terminationConfirmed&&participants(r).length>=2,'NOT_ENOUGH_PLAYERS');
-  requireRule(!social.invites.some(i=>i.inviterId===p.id&&i.status==='pending'),'INVITE_PENDING','Your outgoing invitation is still pending.');
+  requireRule(!social.invites.some(i=>i.inviterId===p.id&&i.status==='pending')&&!social.dealInvites.some(i=>i.inviterId===p.id&&i.status==='pending'),'INVITE_PENDING','Your outgoing social offer is still pending.');
   requireRule(social.invites.length<64,'INVITE_LIMIT');
   requireRule(typeof defenderId==='string'&&defenderId!==p.id,'INVALID_DEFENDER');
   const defender=participants(r).find(candidate=>candidate.id===defenderId);requireRule(defender,'DEFENDER_UNAVAILABLE');
@@ -115,7 +116,7 @@ export function duelCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
   requireRule(p.participating&&p.connected&&!p.departed,'NOT_PARTICIPATING');
   if(c.type==='duel:invite'||c.type==='duel:accept'||c.type==='duel:reject'){
     requireRule(c.socialSlotId===social.slotId,'STALE_SOCIAL_SLOT','This social admission slot has changed.');
-    requireRule(r.phase==='SOCIAL'&&!social.duel&&now<social.admissionDeadline,'ADMISSION_CLOSED');
+    requireRule(r.phase==='SOCIAL'&&!social.duel&&!social.deal&&now<social.admissionDeadline,'ADMISSION_CLOSED');
     if(c.type==='duel:invite'){
       inviteDuel(r,p,c.payload?.defenderId,c.payload?.amount,e,now);return;
     }
@@ -131,6 +132,7 @@ export function duelCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
     // The room commits this candidate atomically: conflicting outgoing offers no
     // longer reserve funds once this acceptance owns the only contest slot.
     for(const other of social.invites)if(other!==invite)cancelInvite(r,other,'cancelled');
+    cancelDealOffers(r);
     requireRule(available(p.account)>=invite.amount,'INSUFFICIENT_AVAILABLE_CHIPS');
     reserve(p.account,stakeKey(invite.id,p.id),invite.amount);
     commit(inviter.account,stakeKey(invite.id,inviter.id));commit(p.account,stakeKey(invite.id,p.id));invite.status='accepted';
@@ -163,18 +165,18 @@ export function duelCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
 /** Presence changes can release pending offers, never accepted escrow. */
 export function cancelPlayerInvites(r:Room,playerId:string,e:EngineOptions,now:number){
   const social=r.party?.social;if(!social)return;
-  let cancelled=false;
+  let cancelled=cancelPlayerDealOffers(r,playerId);
   for(const invite of social.invites)if(invite.status==='pending'&&(invite.inviterId===playerId||invite.defenderId===playerId)){cancelInvite(r,invite,'cancelled');cancelled=true;}
-  if(cancelled)event(r,e,'Pending duel invitations involving an unavailable player were cancelled; reservations were released.',now,playerId);
+  if(cancelled)event(r,e,'Pending social offers involving an unavailable player were cancelled; reservations were released.',now,playerId);
   if(r.phase==='SOCIAL')refreshSocialDeadline(r);
 }
 
 /** Returns true only after the current bounded interval has no live obligation. */
 export function socialDeadline(r:Room,e:EngineOptions,at:number):boolean{
   const social=r.party?.social;requireRule(social,'SOCIAL_CLOSED');
-  if(r.phase==='DUEL_RESULT'){
+  if(r.phase==='DUEL_RESULT'||r.phase==='DEAL_RESULT'){
     if(r.roundLimit===6&&social.slot===1&&!r.terminationConfirmed&&participants(r).length>=2&&social.hardDeadline-at>=SOCIAL_MS){
-      social.slot=2;social.slotId=e.id();social.slotOpenedAt=at;social.admissionDeadline=at+ADMISSION_MS;social.duel=null;
+      social.slot=2;social.slotId=e.id();social.slotOpenedAt=at;social.admissionDeadline=at+ADMISSION_MS;social.duel=null;social.deal=null;
       r.phase='SOCIAL';r.deadline=social.admissionDeadline;
       event(r,e,'Social interval · Second and final contest slot. Its deadlines share the original interval budget.',at);return false;
     }
@@ -195,6 +197,7 @@ export function socialDeadline(r:Room,e:EngineOptions,at:number):boolean{
   overthrowDeadline(r,e,at);
   if(r.phase!=='SOCIAL')return false;
   for(const invite of social.invites)if(invite.status==='pending'&&invite.deadline<=at)cancelInvite(r,invite,'expired');
+  expireDealOffers(r,at);
   if(at>=social.admissionDeadline||at>=social.hardDeadline){closeSocial(r);return true;}
   refreshSocialDeadline(r);return false;
 }
@@ -202,12 +205,14 @@ export function socialDeadline(r:Room,e:EngineOptions,at:number):boolean{
 export function closeSocial(r:Room){
   const social=r.party?.social;if(!social)return;
   requireRule(!social.duel||social.duel.status==='settled','LIVE_DUEL_OBLIGATION');
+  requireRule(!social.deal||social.deal.status==='settled','LIVE_DEAL_OBLIGATION');
   requireRule(!social.ballot||social.ballot.status==='open'||social.ballot.status==='failed'||social.ballot.status==='settled','LIVE_LAST_STAND_OBLIGATION');
   if(social.ballot?.status==='open'){
     social.ballot.status='failed';social.ballot.reason='The social interval closed before an overthrow was accepted.';
     if(!r.party!.overthrowHistory.some(b=>b.id===social.ballot!.id))r.party!.overthrowHistory.push(structuredClone(social.ballot));
   }
   for(const invite of social.invites)cancelInvite(r,invite,'cancelled');
+  cancelDealOffers(r);
   r.party!.social=null;r.deadline=null;
 }
 

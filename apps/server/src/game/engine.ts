@@ -9,6 +9,7 @@ import {overthrowCommand} from './overthrow.js';
 import {grantChaos,resetChaosRound,chaosCommand,openPotTwist,closePotTwist,clearWagerEffect,assertChaos,canAffordNextRound} from './chaos.js';
 import {openHandWindow,markOrdinaryHit,clearOrdinaryHit} from './chaos-hands.js';
 import {bountyCommand,refundBounties,assertBounties} from './bounties.js';
+import {dealCommand,dealsDeadline,assertDeals} from './deals.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -106,12 +107,14 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
     case 'BLUFF_REVEAL': finishHit(r,e,at);break;
     case 'DEALER_TURN': {if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
     case 'ROUND_RESULT': roundBoundary(r,e,at);break;
-    case 'SOCIAL':case 'LAST_STAND_CHOICE':case 'DUEL':case 'DUEL_RESULT': if(socialDeadline(r,e,at)){closeSocial(r);roundBoundary(r,e,at);}break;
+    case 'DEAL': dealsDeadline(r,e,at);break;
+    case 'SOCIAL':case 'LAST_STAND_CHOICE':case 'DUEL':case 'DUEL_RESULT':case 'DEAL_RESULT': if(socialDeadline(r,e,at)){closeSocial(r);roundBoundary(r,e,at);}break;
     default: requireRule(false,'INVALID_PHASE_DEADLINE');
   }
 }
 export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   switch(c.type){
+    case 'deal:offer':case 'deal:accept':case 'deal:reject':case 'deal:choose':dealCommand(r,p,c,e,now);break;
     case 'bounty:contribute':case 'bounty:invite':bountyCommand(r,p,c,e,now);break;
     case 'chaos:activate':case 'chaos:optin':chaosCommand(r,p,c,e,now);break;
     case 'house:ballot':case 'house:vote':case 'house:choose':overthrowCommand(r,p,c,e,now);break;
@@ -143,6 +146,7 @@ export function assertRoom(r:Room){
   assertChaos(r);
   assertDuels(r);
   assertBounties(r);
+  assertDeals(r);
   let total=0;
   for(const p of r.players){assertAccount(p.account);if(p.participating)total+=p.account.balance+Object.values(p.account.escrows).reduce((a,b)=>a+b,0);}
   if(r.matchId)requireRule(total+(r.party?.vault??0)+(r.party?.bonusReserve??0)===r.initialChips+(r.party?.initialBonusReserve??0)+r.dealerNet,'LEDGER_INVARIANT');
@@ -155,7 +159,11 @@ export function assertRoom(r:Room){
     if(social){
       requireRule(typeof social.slotId==='string'&&!!social.slotId&&(social.slot===1&&social.slotOpenedAt===social.openedAt||r.roundLimit===6&&social.slot===2&&social.slotOpenedAt>=social.openedAt&&social.slotOpenedAt+90000<=social.hardDeadline)&&social.admissionDeadline===social.slotOpenedAt+20000&&social.hardDeadline===social.openedAt+(r.roundLimit===6?180000:90000),'SOCIAL_BUDGET_INVARIANT');
       requireRule(social.invites.length<=64&&new Set(social.invites.map(i=>i.id)).size===social.invites.length,'DUEL_INVITES_INVARIANT');
-      requireRule([1,2].every(slot=>social.invites.filter(i=>i.status==='accepted'&&(i.slot??1)===slot).length<=1),'DUEL_OVERLAP');
+      requireRule(social.dealInvites.length<=64&&new Set(social.dealInvites.map(i=>i.id)).size===social.dealInvites.length,'DEAL_INVITES_INVARIANT');
+      requireRule(!social.duel||!social.deal,'SOCIAL_CONTEST_OVERLAP');
+      requireRule([1,2].every(slot=>social.invites.filter(i=>i.status==='accepted'&&(i.slot??1)===slot).length+social.dealInvites.filter(i=>i.status==='accepted'&&i.slot===slot).length<=1),'DUEL_OVERLAP');
+      const contests=[...r.party.duelHistory,...r.party.dealHistory,...(social.duel?.status==='playing'?[social.duel]:[]),...(social.deal?.status==='choosing'?[social.deal]:[])].filter(contest=>contest.socialId===social.id);
+      requireRule([1,2].every(slot=>contests.filter(contest=>contest.slot===slot).length<=1),'SOCIAL_CONTEST_OVERLAP');
       if(social.duel){requireRule(social.duel.throws.length<=5,'RPS_THROW_CAP');requireRule(social.duel.deadline<=social.duel.hardDeadline&&social.duel.hardDeadline<=social.hardDeadline-2000,'DUEL_BUDGET_INVARIANT');}
     }
   }
