@@ -132,7 +132,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: At the early checkpoint, initiate “My next hit won't bust,” accept from another player, compare every screen's card and pot, finish the match, then return to the same lobby and ready for replay.
   Commit: `feat: complete Call My Bluff matches and same-room replay`
 
-- [ ] **3. Recover sessions and verify the complete Classic foundation**
+- [x] **3. Recover sessions and verify the complete Classic foundation**
   Becomes usable: A fully verified Classic match survives refreshes, controller replacement, absent hosts, and player loss; unavailable matches and settled early endings are clear.
   Why now: Depends on slices 1–2. This is the mandatory Tier 0 gate and early hands-on checkpoint before any House or other expansion code.
   PRD ref: `prd.md > Disconnects and Reconnection`, `Host Departure and Room Lifetime`, `Early Match Conclusion`, `States and Boundaries`, `Final Consistency Review`.
@@ -346,7 +346,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run dev` on isolated ports 5177/3011 passed health, configured-origin POST, authenticated Socket.IO and room creation through the Vite proxy; stopped that test server. Compiled `npm start` on localhost:3000 passed health and page HTTP 200. README contains separate localhost and LAN instructions.
 - Restarted the main compiled server with HOST=0.0.0.0 and the PC's exact LAN origin on port 3000 for the learner checkpoint. Through the actual IPv4 address, health and two isolated Chromium browsers passed room creation, join, readiness and start with no page errors; inspected the resulting table screenshot. This verifies this PC's LAN interface path, not a second physical device or its firewall/network path. The server remains running for the learner's retry.
 - Final complete verification passed: `npm run typecheck`; `npm test` (**176 tests / 11 files**); `npm run test:e2e` including production build (**12 browser tests**). The interrupted approval-review operation did not modify documentation; resumed from preserved files and collected the completed test run successfully.
-- Stable Classic commit hash recorded immediately after the milestone commit. Initial hands-on feedback is resolved; physical cross-device LAN testing remains pending.
+- Stable verified Classic recovery commit: `f9e2729`. Initial hands-on feedback is resolved; physical cross-device LAN testing remains pending. Next implementation slice: sealed House auctions and funded commissions.
 
 ## Revisions
 
