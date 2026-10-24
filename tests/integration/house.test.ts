@@ -114,7 +114,7 @@ describe('funded Party settlement, fallback and replay',()=>{
   });
   it('distributes the funded Vault once before final standings, leaves the bonus reserve unspent, and resets Party state on replay',()=>{
     const f=fixture({mode:'PARTY',players:3});f.start();const firstMatch=f.view().matchId;bid(f,0,50);f.advance(22000);
-    for(let i=0;i<3;i++)f.advance(RULES.bettingMs+RULES.resultMs);
+    for(let i=0;i<3;i++){f.advance(RULES.bettingMs+RULES.resultMs);if(i<2){expect(f.view().phase).toBe('SOCIAL');f.advance(20000);}}
     expect(f.view().phase).toBe('RESULTS');expect(f.view().results!.standings.map(p=>p.balance)).toEqual([1017,1016,967]);expect(f.view().party).toMatchObject({vault:0,bonusReserve:300});noPending(f);
     const settled=structuredClone(f.room());f.advance(10000);expect(f.room()).toEqual(settled);
     expect(f.send(f.host,'results:return').status).toBe('ok');expect(f.view()).toMatchObject({phase:'LOBBY',mode:'PARTY',party:null,roundPayouts:[]});

@@ -59,11 +59,17 @@ test('four guests seal House bids, receive full Blackjack payouts and replay wit
   expect(table.view(code).players.map(player => player.balance)).toEqual([900, 706, 1100, 1100]);
   await pages[0].screenshot({ path: 'test-results/house-round-payouts.png', fullPage: true });
   table.advance(4000);
+  await expect.poll(() => table.view(code).phase).toBe('SOCIAL');
+  table.advance(20000);
   for (let round = 2; round <= 3; round++) {
     await expect.poll(() => table.view(code).round).toBe(round);
     table.advance(20000);
     await expect.poll(() => table.view(code).phase).toBe('ROUND_RESULT');
     table.advance(4000);
+    if (round < 3) {
+      await expect.poll(() => table.view(code).phase).toBe('SOCIAL');
+      table.advance(20000);
+    }
   }
   await expect.poll(() => table.view(code).phase).toBe('RESULTS');
   expect(table.view(code).players.map(player => player.balance)).toEqual([975, 781, 1175, 1175]);

@@ -6,10 +6,11 @@ import {GameError,requireRule,type Room,type EngineOptions} from './game/state.j
 import {addEvent,assertRoom,connected,createRoom,deadlineTransition,gameCommand,makePlayer,roundBoundary,startMatch} from './game/engine.js';
 import {project} from './projection.js';
 import {cancelBluff} from './game/bluff.js';
+import {cancelPlayerInvites} from './game/duels.js';
 
-const TYPES:CommandType[]=['room:create','room:join','lobby:ready','lobby:mode','house:bid','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
-const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','auctionId','payload'];
-const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'house:bid':['amount'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
+const TYPES:CommandType[]=['room:create','room:join','lobby:ready','lobby:mode','house:bid','duel:invite','duel:reject','duel:accept','duel:choose','duel:resign','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
+const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','auctionId','socialId','inviteId','duelId','throwId','payload'];
+const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'house:bid':['amount'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
 function canonical(value:unknown):string {if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;if(value&&typeof value==='object')return `{${Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical((value as Record<string,unknown>)[k])).join(',')}}`;return JSON.stringify(value);}
 export function validateCommand(raw:unknown):Command {
   requireRule(raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_REQUEST');
@@ -49,7 +50,7 @@ export class RoomManager {
     this.reconcile();const r=this.roomFor(id);if(!r)return;
     if(isConnected&&r.phase==='RESULTS')r.resultsSince=this.e.now();
     const p=r.players.find(p=>p.id===id);if(!p||p.departed||p.connected===isConnected)return;
-    this.update(r,d=>{const player=d.players.find(p=>p.id===id)!;player.connected=isConnected;player.disconnectedAt=isConnected?null:this.e.now();if(!isConnected){player.ready=false;if(d.phase==='BLUFF_OFFER'&&d.bluff?.claimantId===id){cancelBluff(d,this.e,this.e.now(),'cancelled');addEvent(d,this.e,'bluff','Offer cancelled after claimant disconnect; reservation returned.',this.e.now(),id);}}addEvent(d,this.e,'presence',`${player.name} ${isConnected?'reconnected':'disconnected'}.`,this.e.now(),id);this.presenceRules(d,this.e.now());});
+    this.update(r,d=>{const player=d.players.find(p=>p.id===id)!;player.connected=isConnected;player.disconnectedAt=isConnected?null:this.e.now();if(!isConnected){player.ready=false;cancelPlayerInvites(d,id,this.e,this.e.now());if(d.phase==='BLUFF_OFFER'&&d.bluff?.claimantId===id){cancelBluff(d,this.e,this.e.now(),'cancelled');addEvent(d,this.e,'bluff','Offer cancelled after claimant disconnect; reservation returned.',this.e.now(),id);}}addEvent(d,this.e,'presence',`${player.name} ${isConnected?'reconnected':'disconnected'}.`,this.e.now(),id);this.presenceRules(d,this.e.now());});
   }
   command(id:string,raw:unknown):Ack {
     let c:Command|undefined,recordKey:string|undefined,recordFingerprint:string|undefined;
@@ -105,6 +106,7 @@ export class RoomManager {
             case 'lobby:ready':requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(typeof command.payload?.ready==='boolean','INVALID_READY');p.ready=command.payload.ready;break;
             case 'match:start':requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');startMatch(d,this.e,now);break;
             case 'room:leave':
+              cancelPlayerInvites(d,id,this.e,now);
               if(d.phase==='BLUFF_OFFER'&&d.bluff?.claimantId===id)cancelBluff(d,this.e,now,'cancelled');
               p.connected=false;p.departed=true;p.ready=false;p.disconnectedAt=now;
               if(d.phase==='LOBBY')d.players=d.players.filter(p=>p.id!==id);

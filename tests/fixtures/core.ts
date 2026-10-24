@@ -15,7 +15,7 @@ export function fixture(options:{players?:number;ranks?:Rank[];maxRooms?:number;
   const room=()=>manager.roomFor(host)!;
   const command=(actor:string,type:CommandType,payload?:Record<string,unknown>,extra:Partial<Command>={}):Command=>{
     const state=manager.snapshot(actor);
-    return {requestId:`request-${++requests}`,type,...(state?{roomInstanceId:state.instanceId,lobbyId:state.lobbyId,matchId:state.matchId,roundId:state.roundId,decisionId:state.decisionId,bettingId:state.bettingId,offerId:state.bluff?.id,auctionId:state.party?.auction.id}:{}),...(payload?{payload}:{}),...extra};
+    return {requestId:`request-${++requests}`,type,...(state?{roomInstanceId:state.instanceId,lobbyId:state.lobbyId,matchId:state.matchId,roundId:state.roundId,decisionId:state.decisionId,bettingId:state.bettingId,offerId:state.bluff?.id,auctionId:state.party?.auction.id,socialId:state.party?.social?.id,duelId:state.party?.social?.duel?.id,throwId:state.party?.social?.duel?.throwId}:{}),...(payload?{payload}:{}),...extra};
   };
   const send=(actor:string,type:CommandType,payload?:Record<string,unknown>,extra:Partial<Command>={})=>manager.command(actor,command(actor,type,payload,extra));
   for(const [i,actor] of actors.entries()){

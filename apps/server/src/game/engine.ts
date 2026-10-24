@@ -4,6 +4,7 @@ import {evaluate} from './cards.js';
 import {payout,dealerShouldHit} from './blackjack.js';
 import {offerBluff,acceptBluff,cancelBluff} from './bluff.js';
 import {startAuction,closeAuction,submitBid,payCommission,distributeVault} from './house.js';
+import {openSocial,duelCommand,socialDeadline,closeSocial,assertDuels} from './duels.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -59,6 +60,7 @@ export function settleRound(r:Room,e:EngineOptions,now:number){
   r.phase='ROUND_RESULT';r.deadline=now+RULES.resultMs;r.activePlayerId=undefined;r.decisionId=undefined;
 }
 export function results(r:Room,e:EngineOptions,now:number,reason?:string){
+  closeSocial(r);
   const vault=r.party?.vault??0;distributeVault(r);if(vault)addEvent(r,e,'vault',`The ${vault}-chip Vault is shared among all original participants, with remainder chips in seat order.`,now);
   const standings=r.players.filter(p=>p.participating).map(p=>({id:p.id,name:p.name,balance:p.account.balance,bluffWins:p.bluffWins,bluffLosses:p.bluffLosses})).sort((a,b)=>b.balance-a.balance);
   const result:MatchResults={reason,standings,winners:standings.filter(p=>p.balance===standings[0]?.balance).map(p=>p.id),biggestBluff:r.biggestBluff};
@@ -70,6 +72,7 @@ export function roundBoundary(r:Room,e:EngineOptions,now:number){
   if(r.round>=RULES.rounds){results(r,e,now);return;}
   if(connected(r).length<2){r.phase='WAITING_FOR_PLAYERS';r.deadline=null;return;}
   if(connected(r).filter(p=>available(p.account)>=50).length<2){results(r,e,now,'Fewer than two connected players can afford the minimum wager.');return;}
+  if(r.party&&r.round>0&&r.party.socialRound<r.round){openSocial(r,e,now);return;}
   startRound(r,e,now);
 }
 export function deadlineTransition(r:Room,e:EngineOptions,at:number){
@@ -93,11 +96,13 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
     case 'BLUFF_REVEAL': finishHit(r,e,at);break;
     case 'DEALER_TURN': {if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
     case 'ROUND_RESULT': roundBoundary(r,e,at);break;
+    case 'SOCIAL':case 'DUEL':case 'DUEL_RESULT': if(socialDeadline(r,e,at)){closeSocial(r);roundBoundary(r,e,at);}break;
     default: requireRule(false,'INVALID_PHASE_DEADLINE');
   }
 }
 export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   switch(c.type){
+    case 'duel:invite':case 'duel:reject':case 'duel:accept':case 'duel:choose':case 'duel:resign':duelCommand(r,p,c,e,now);break;
     case 'house:bid': submitBid(r,p,c);break;
     case 'bluff:offer': offerBluff(r,p,c,e,now);addEvent(r,e,'bluff',`${p.name}: “My next hit won't bust.” ${r.bluff!.amount} chips to call.`,now,p.id);break;
     case 'bluff:accept': {
@@ -120,6 +125,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
   }
 }
 export function assertRoom(r:Room){
+  assertDuels(r);
   let total=0;
   for(const p of r.players){assertAccount(p.account);if(p.participating)total+=p.account.balance+Object.values(p.account.escrows).reduce((a,b)=>a+b,0);}
   if(r.matchId)requireRule(total+(r.party?.vault??0)+(r.party?.bonusReserve??0)===r.initialChips+(r.party?.initialBonusReserve??0)+r.dealerNet,'LEDGER_INVARIANT');
@@ -127,6 +133,14 @@ export function assertRoom(r:Room){
     for(const amount of [r.party.vault,r.party.bonusReserve,r.party.initialBonusReserve])requireRule(Number.isSafeInteger(amount)&&amount>=0,'PARTY_LEDGER_INVARIANT');
     requireRule(new Set(r.party.transfers.map(t=>t.id)).size===r.party.transfers.length,'DUPLICATE_PARTY_TRANSFER');
     for(const t of r.party.transfers)requireRule(Number.isSafeInteger(t.amount)&&t.amount>=0,'INVALID_PARTY_TRANSFER');
+    requireRule(new Set(r.party.duelHistory.map(d=>d.id)).size===r.party.duelHistory.length,'DUPLICATE_DUEL');
+    const social=r.party.social;
+    if(social){
+      requireRule(social.admissionDeadline===social.openedAt+20000&&social.hardDeadline===social.openedAt+90000,'SOCIAL_BUDGET_INVARIANT');
+      requireRule(social.invites.length<=64&&new Set(social.invites.map(i=>i.id)).size===social.invites.length,'DUEL_INVITES_INVARIANT');
+      requireRule(social.invites.filter(i=>i.status==='accepted').length<=1,'DUEL_OVERLAP');
+      if(social.duel){requireRule(social.duel.throws.length<=5,'RPS_THROW_CAP');requireRule(social.duel.deadline<=social.duel.hardDeadline&&social.duel.hardDeadline<=social.hardDeadline-2000,'DUEL_BUDGET_INVARIANT');}
+    }
   }
   const dealt=r.players.flatMap(p=>p.hand).concat(r.dealer);requireRule(new Set(dealt.map(c=>c.id)).size===dealt.length,'DUPLICATE_CARD');
   requireRule(r.cursor===dealt.length,'DRAW_INVARIANT');
