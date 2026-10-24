@@ -232,7 +232,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: Enter the finale with different private hands, try both a truthful and false claim, challenge from another player, and verify that the funded Vault reaches the correct final stack(s).
   Commit: `feat: add funded Vault finale and Shadow Draw`
 
-- [ ] **13. Talk at the table and earn real session achievements**
+- [x] **13. Talk at the table and earn real session achievements**
   Becomes usable: Safe room chat, lobby profile customization, richer match statistics and event-derived session badges accompany actual games.
   Why now: Depends on authoritative events from the released gameplay systems; prevents fabricated achievements while enhancing social play after its foundations work.
   PRD ref: `prd.md > Shared Reactions and Announcements`, `Match Results`, `Deferred From the POC`; `vision.md > 9. Multiplayer Platform Features`; proposed platform rules.
@@ -446,7 +446,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - Added detailed per-match Blackjack/bluff/duel/deal nets and outcomes, funded bounty/Vault awards, House reigns, bounty claim counts and positive non-fallback Vault victories. These reset at replay, separately from retained session badges and Master Bluffer progress. All profile/stat changes occur inside validated candidate commits; client-supplied badges, player IDs and identity changes are rejected.
 - `npm run typecheck` passed. Required achievement/chat/profile checks passed **59 tests / 3 files**; `npm test` passed **748 tests / 33 files**. Cases include Unicode/control/length validation, rate boundaries/history cap, private cross-room chat, HTML payloads as text, server identity/time, scoped duplicate requests, no live-decision invalidation, cosmetic validation/authority, actual badge events and exclusions, five-win multi-match progress, ties/comebacks, once-only evidence, replay resets, actual old-room Vault obligations merging into a new room and real HTTP guest-cookie/profile expiry. An invalid-Unicode test exposed and repaired unpaired-surrogate acceptance before final verification.
 - Fresh production build and `npm run test:e2e -- tests/e2e/social.spec.ts tests/e2e/match.spec.ts` passed **4 browser tests**. A deliberately delayed chat acknowledgement leaves an actual Hit usable with the original decision/deadline; plaintext HTML, cross-room privacy, server identity/time, avatar refresh, rate errors and preserved drafts pass. A funded 500-chip lone-Steal deal earns Betrayer without a false High Roller; an actual 400-chip duel then earns High Roller, with once-only server evidence, detailed stats, retained conversation and session badges across replay. Both Classic bluff journeys remain passing. Corrected the browser setup to re-ready a deliberately refreshed guest, preserving the existing disconnect rule.
-- Inspected mobile room chat and desktop badge/evidence/statistics screenshots; no page overflow. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Next slice: public Quick Play and validated Party settings.
+- Inspected mobile room chat and desktop badge/evidence/statistics screenshots; no page overflow. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Verified implementation commit: `16d6d53`. Next slice: public Quick Play and validated Party settings.
 
 ## Revisions
 
