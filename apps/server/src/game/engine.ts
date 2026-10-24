@@ -7,6 +7,7 @@ import {startAuction,closeAuction,submitBid,payCommission,distributeVault} from 
 import {openSocial,duelCommand,socialDeadline,closeSocial,assertDuels} from './duels.js';
 import {overthrowCommand} from './overthrow.js';
 import {grantChaos,resetChaosRound,chaosCommand,openPotTwist,closePotTwist,clearWagerEffect,assertChaos,canAffordNextRound} from './chaos.js';
+import {openHandWindow,markOrdinaryHit,clearOrdinaryHit} from './chaos-hands.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -17,7 +18,7 @@ export function makePlayer(id:string,name:string,seat:number,now:number):Player 
   return {id,name,seat,joinedAt:now,connected:true,departed:false,ready:false,disconnectedAt:null,account:account(),hand:[],status:'waiting',wager:0,participating:false,bluffUsed:false,bluffWins:0,bluffLosses:0};
 }
 export function createRoom(code:string,player:Player,e:EngineOptions):Room {
-  return {mode:'CLASSIC',party:null,roundPayouts:[],instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
+  return {mode:'CLASSIC',party:null,roundPayouts:[],instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,discarded:[],dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
 }
 export function connected(r:Room){return r.players.filter(p=>p.connected&&!p.departed&&(r.phase==='LOBBY'||p.participating));}
 export function active(r:Room):Player {const p=r.players.find(p=>p.id===r.activePlayerId);requireRule(p,'NO_ACTIVE_PLAYER');return p;}
@@ -26,7 +27,7 @@ export function startRound(r:Room,e:EngineOptions,now:number){
   r.round++;r.roundId=e.id();r.bettingId=e.id();r.phase='BETTING';r.deadline=now+RULES.bettingMs;
   resetChaosRound(r);
   r.roundPayouts=[];
-  r.decisionId=undefined;r.activePlayerId=undefined;r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.bluff=null;
+  r.decisionId=undefined;r.activePlayerId=undefined;r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.discarded=[];r.bluff=null;
   for(const p of r.players){p.hand=[];p.status=p.participating?'waiting':'observer';p.wager=0;p.wagerId=undefined;p.bluffUsed=false;}
   addEvent(r,e,'round',`Round ${r.round} · Place your wagers`,now);
 }
@@ -39,7 +40,7 @@ export function startMatch(r:Room,e:EngineOptions,now:number){
   r.party=null;r.roundPayouts=[];
   if(r.mode==='PARTY'){startAuction(r,e,now);addEvent(r,e,'house','The sealed House auction is open. Bids stay private until reveal.',now);}else startRound(r,e,now);
 }
-export function freshDecision(r:Room,e:EngineOptions,now:number,duration=RULES.decisionMs){r.phase='PLAYER_TURN';r.decisionId=e.id();r.deadline=now+duration;}
+export function freshDecision(r:Room,e:EngineOptions,now:number,duration=RULES.decisionMs){if(r.activePlayerId)clearOrdinaryHit(r,r.activePlayerId);r.phase='PLAYER_TURN';r.decisionId=e.id();r.deadline=now+duration;}
 export function nextTurn(r:Room,e:EngineOptions,now:number){
   const next=r.players.find(p=>p.participating&&p.status==='playing');
   if(next){r.activePlayerId=next.id;freshDecision(r,e,now);return;}
@@ -95,9 +96,10 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
     case 'POT_TWIST': closePotTwist(r);commitBetsAndDeal(r,e,at);break;
     case 'DEALING': {
       for(const p of r.players)if(p.hand.length&&evaluate(p.hand).natural)p.status='natural';
-      if(evaluate(r.dealer).natural)settleRound(r,e,at);else nextTurn(r,e,at);break;
+      if(evaluate(r.dealer).natural)settleRound(r,e,at);else if(!openHandWindow(r,e,at))nextTurn(r,e,at);break;
     }
-    case 'PLAYER_TURN': {const p=active(r);p.status='stood';addEvent(r,e,'timeout',`${p.name} automatically stands.`,at,p.id);nextTurn(r,e,at);break;}
+    case 'HAND_CHAOS': nextTurn(r,e,at);break;
+    case 'PLAYER_TURN': {const p=active(r);clearOrdinaryHit(r,p.id);p.status='stood';addEvent(r,e,'timeout',`${p.name} automatically stands.`,at,p.id);nextTurn(r,e,at);break;}
     case 'BLUFF_OFFER': cancelBluff(r,e,at,'expired');addEvent(r,e,'bluff','Nobody called. Reserved chips returned; no card drawn.',at);break;
     case 'BLUFF_REVEAL': finishHit(r,e,at);break;
     case 'DEALER_TURN': {if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
@@ -112,7 +114,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
     case 'house:ballot':case 'house:vote':case 'house:choose':overthrowCommand(r,p,c,e,now);break;
     case 'duel:invite':case 'duel:reject':case 'duel:accept':case 'duel:choose':case 'duel:move':case 'duel:resign':duelCommand(r,p,c,e,now);break;
     case 'house:bid': submitBid(r,p,c);break;
-    case 'bluff:offer': offerBluff(r,p,c,e,now);addEvent(r,e,'bluff',`${p.name}: “My next hit won't bust.” ${r.bluff!.amount} chips to call.`,now,p.id);break;
+    case 'bluff:offer': offerBluff(r,p,c,e,now);clearOrdinaryHit(r,p.id);addEvent(r,e,'bluff',`${p.name}: “My next hit won't bust.” ${r.bluff!.amount} chips to call.`,now,p.id);break;
     case 'bluff:accept': {
       acceptBluff(r,p,c,e,now);const winner=r.players.find(p=>p.id===r.bluff!.winnerId)!;
       addEvent(r,e,'bluff',`${winner.name} wins the ${r.bluff!.pot}-chip bluff pot (+${r.bluff!.amount} net).`,now,winner.id);break;
@@ -128,7 +130,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
     case 'turn:hit':case 'turn:stand': {
       requireRule(r.phase==='PLAYER_TURN','PHASE_LOCKED','Wait for your next Blackjack decision.');
       requireRule(r.activePlayerId===p.id,'NOT_YOUR_TURN');requireRule(c.decisionId===r.decisionId,'STALE_DECISION','This decision has already changed.');
-      if(c.type==='turn:hit'){p.hand.push(draw(r));finishHit(r,e,now);}else {p.status='stood';nextTurn(r,e,now);}break;
+      if(c.type==='turn:hit'){p.hand.push(draw(r));finishHit(r,e,now);markOrdinaryHit(r,p);}else {clearOrdinaryHit(r,p.id);p.status='stood';nextTurn(r,e,now);}break;
     }
     default: requireRule(false,'UNAVAILABLE_ACTION','This action is not available.');
   }
@@ -152,7 +154,7 @@ export function assertRoom(r:Room){
       if(social.duel){requireRule(social.duel.throws.length<=5,'RPS_THROW_CAP');requireRule(social.duel.deadline<=social.duel.hardDeadline&&social.duel.hardDeadline<=social.hardDeadline-2000,'DUEL_BUDGET_INVARIANT');}
     }
   }
-  const dealt=r.players.flatMap(p=>p.hand).concat(r.dealer);requireRule(new Set(dealt.map(c=>c.id)).size===dealt.length,'DUPLICATE_CARD');
+  const dealt=r.players.flatMap(p=>p.hand).concat(r.dealer,r.discarded);requireRule(new Set(dealt.map(c=>c.id)).size===dealt.length,'DUPLICATE_CARD');
   requireRule(r.cursor===dealt.length,'DRAW_INVARIANT');
   requireRule(new Set(r.bluffOutcomes.map(o=>o.id)).size===r.bluffOutcomes.length,'DUPLICATE_BLUFF');
   requireRule(r.players.reduce((n,p)=>n+p.bluffWins,0)===r.bluffOutcomes.length,'BLUFF_STATS_INVARIANT');

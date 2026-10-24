@@ -3,6 +3,7 @@ import {RULES,type ChaosKind} from '@bluff-house/shared';
 import {assertRoom} from '../../apps/server/src/game/engine.js';
 import {reserve} from '../../apps/server/src/game/ledger.js';
 import {fixture} from '../fixtures/core.js';
+import type {Rank} from '@bluff-house/shared';
 
 type F=ReturnType<typeof fixture>;
 function betting(players=3,ranks?:NonNullable<Parameters<typeof fixture>[0]>['ranks']){const f=fixture({mode:'PARTY',players,ranks});f.start();f.advance(22000);expect(f.view().phase).toBe('BETTING');return f;}
@@ -83,5 +84,121 @@ describe('finite Emergency Fund',()=>{
   });
   it('allows a held funded Emergency card to avert premature affordability termination without automatically crediting it',()=>{
     const f=betting(2);balances(f,[0,100]);card(f,0,'EMERGENCY_FUND');f.advance(RULES.bettingMs+RULES.resultMs);expect(f.view().phase).toBe('SOCIAL');f.advance(20000);expect(f.view().phase).toBe('BETTING');expect(f.view().players[0]!.balance).toBe(0);const held=f.view().party!.chaos.inventories.find(i=>i.playerId===f.host)!.cards.find(c=>c.kind==='EMERGENCY_FUND')!;expect(activate(f,0,held.id).status).toBe('ok');expect(f.view().players[0]!.balance).toBe(100);assertRoom(f.room());
+  });
+});
+
+function movement(players=3,ranks?:Rank[]){
+  const order=ranks??[...Array.from({length:players},(_,i)=>String(i+4) as Rank),'10',...Array.from({length:players},(_,i)=>String(i+5) as Rank),'7','3','2','10'];
+  const f=betting(players,order);f.bet();f.advance(RULES.bettingMs+RULES.dealingMs);expect(f.view().phase).toBe('HAND_CHAOS');return f;
+}
+function ordinary(ranks:Rank[]=['6','9','10','6','8','7','3','2','10']){const f=betting(2,ranks);f.bet();f.deal();expect(f.view().phase).toBe('PLAYER_TURN');return f;}
+const ids=(f:F)=>f.room().players.map(p=>p.hand.map(c=>c.id));
+const play=(f:F,seat:number,id:string,targetId?:string)=>f.send(f.actors[seat]!,'chaos:activate',{cardId:id,...(targetId?{targetId}:{})});
+
+describe('shared pre-turn Hand Swap and Table Turn window',()=>{
+  it.each([2,3,4,5,6])('publishes one shared five-second window and swaps real cards at %i seats',players=>{
+    const f=movement(players),before=ids(f),target=players-1,id=card(f,0,'HAND_SWAP'),wagers=f.room().players.map(p=>p.wager),dealer=structuredClone(f.room().dealer),window=f.view().party!.chaos.handWindow!;
+    expect(window).toMatchObject({deadline:f.view().serverTime+5000,resolved:false,eligibleIds:f.actors});expect(f.view().decisionId).toBeUndefined();
+    expect(f.view().party!.chaos.handTargets).toEqual(f.actors.slice(1));expect(play(f,0,id,f.actors[target]).status).toBe('ok');
+    [before[0],before[target]]=[before[target]!,before[0]!];expect(ids(f)).toEqual(before);expect(f.room().dealer).toEqual(dealer);expect(f.room().players.map(p=>p.wager)).toEqual(wagers);
+    expect(f.view().party!.chaos.usedThisRound).toBe(true);expect(f.view(f.actors[target]).party!.chaos.usedThisRound).toBe(false);expect(f.view().party!.chaos.handWindow!.resolved).toBe(true);expect(f.view().party!.chaos.handTargets).toEqual([]);
+    f.advance(5000);expect(f.view().phase).toBe('PLAYER_TURN');expect(f.view().deadline!-f.view().serverTime).toBe(RULES.decisionMs);assertRoom(f.room());
+  });
+  it.each([2,3,4,5,6])('rotates every eligible hand one seat left at %i seats',players=>{
+    const f=movement(players),before=ids(f),id=card(f,players-1,'TABLE_TURN'),cursor=f.room().cursor;
+    expect(play(f,players-1,id).status).toBe('ok');expect(ids(f)).toEqual([...before.slice(1),before[0]]);expect(f.room().cursor).toBe(cursor);expect(f.room().discarded).toEqual([]);expect(f.room().players.map(p=>p.seat)).toEqual(Array.from({length:players},(_,i)=>i));assertRoom(f.room());
+  });
+  it('opens the window without a held movement card and never exposes the dealer hole card early',()=>{
+    const f=movement();expect(f.view().party!.chaos.inventories.flatMap(i=>i.cards)).toEqual([]);expect(f.view().dealer[1]).toBeNull();f.advance(5000);expect(f.view().phase).toBe('PLAYER_TURN');expect(f.view().dealer[1]).toBeNull();
+  });
+  it('protects natural hands and skips the whole window when the dealer has a natural',()=>{
+    const f=movement(3,['A','6','7','10','K','6','8','7','3']);expect(f.view().players[0]!.status).toBe('natural');expect(f.view().party!.chaos.handWindow!.eligibleIds).toEqual(f.actors.slice(1));expect(f.view().party!.chaos.handTargets).toEqual([]);
+    const natural=structuredClone(f.room().players[0]!.hand),id=card(f,1,'TABLE_TURN');expect(play(f,1,id).status).toBe('ok');expect(f.room().players[0]!.hand).toEqual(natural);assertRoom(f.room());
+    const dealer=betting(2,['6','9','A','6','8','K']);dealer.bet();dealer.advance(RULES.bettingMs+RULES.dealingMs);expect(dealer.view().phase).toBe('ROUND_RESULT');expect(dealer.view().party!.chaos.handWindow).toBeNull();assertRoom(dealer.room());
+  });
+  it('recomputes eligible targets after disconnect and reconnect without extending the deadline',()=>{
+    const f=movement(4),id=card(f,0,'HAND_SWAP'),deadline=f.view().deadline;f.manager.presence(f.actors[1]!,false);
+    expect(f.view().party!.chaos.handWindow!.eligibleIds).toEqual([f.host,...f.actors.slice(2)]);expect(f.view().party!.chaos.handTargets).toEqual(f.actors.slice(2));const before=structuredClone(f.room());expect(play(f,0,id,f.actors[1]).status).toBe('rejected');expect(f.room()).toEqual(before);
+    f.advance(2000);f.manager.presence(f.actors[1]!,true);expect(f.view().deadline).toBe(deadline);expect(f.view().party!.chaos.handTargets).toContain(f.actors[1]);expect(play(f,0,id,f.actors[1]).status).toBe('ok');assertRoom(f.room());
+  });
+  it('rotates around absent and departed seats and preserves their hands and wagers',()=>{
+    const f=movement(4),before=ids(f),id=card(f,0,'TABLE_TURN'),wagers=f.room().players.map(p=>p.wager);f.manager.presence(f.actors[1]!,false);expect(f.send(f.actors[2]!,'room:leave').status).toBe('ok');
+    expect(play(f,0,id).status).toBe('ok');expect(ids(f)).toEqual([before[3],before[1],before[2],before[0]]);expect(f.room().players.map(p=>p.wager)).toEqual(wagers);assertRoom(f.room());
+  });
+  it('lets only the first competing effect resolve and preserves the losing held card and allowance',()=>{
+    const f=movement(),first=card(f,0,'TABLE_TURN'),second=card(f,1,'HAND_SWAP'),a=f.command(f.host,'chaos:activate',{cardId:first}),b=f.command(f.actors[1]!,'chaos:activate',{cardId:second,targetId:f.actors[2]}),ack=f.manager.command(f.host,a);
+    expect(ack.status).toBe('ok');const after=structuredClone(f.room());expect(f.manager.command(f.actors[1]!,b).status).toBe('rejected');expect(f.room()).toEqual(after);expect(f.view(f.actors[1]).party!.chaos.usedThisRound).toBe(false);expect(f.view().party!.chaos.inventories.find(i=>i.playerId===f.actors[1])!.cards).toEqual([{id:second,kind:'HAND_SWAP'}]);expect(f.manager.command(f.host,a)).toEqual(ack);expect(f.room()).toEqual(after);
+  });
+  it('keeps seat-owned bluff and Chaos allowances and rejects movement after a wager effect was already used',()=>{
+    const f=betting(3);f.bet();const multiplier=card(f,0,'DOUBLE_DOWN');expect(play(f,0,multiplier).status).toBe('ok');const swap=card(f,0,'HAND_SWAP');f.advance(RULES.bettingMs+RULES.dealingMs);const before=structuredClone(f.room());expect(play(f,0,swap,f.actors[1]).status).toBe('rejected');expect(f.room()).toEqual(before);
+    const turn=card(f,1,'TABLE_TURN');expect(play(f,1,turn).status).toBe('ok');expect(f.view().players.map(p=>p.wager)).toEqual([200,100,100]);expect(f.room().players.map(p=>p.bluffUsed)).toEqual([false,false,false]);expect(f.room().party!.chaos.usedRound[f.actors[2]!]).toBeUndefined();assertRoom(f.room());
+  });
+  it('rejects self, missing, unknown, foreign and unfunded targets atomically',()=>{
+    const f=movement(),held=card(f,0,'HAND_SWAP'),foreign=card(f,1,'TABLE_TURN');
+    for(const payload of [{cardId:held},{cardId:held,targetId:f.host},{cardId:held,targetId:'unknown-player'},{cardId:foreign,targetId:f.actors[1]},{cardId:held,targetId:f.actors[1],amount:100}]){const before=structuredClone(f.room());expect(f.send(f.host,'chaos:activate',payload).status).toBe('rejected');expect(f.room()).toEqual(before);}
+    const p=f.room().players[1]!;p.status='skipped';const before=structuredClone(f.room());expect(play(f,0,held,p.id).status).toBe('rejected');expect(f.room()).toEqual(before);
+  });
+  it('rejects stale contexts and an exact-deadline command without consuming the held card',()=>{
+    const f=movement(),id=card(f,0,'TABLE_TURN');
+    for(const key of ['roomInstanceId','matchId','roundId','chaosWindowId'] as const){const before=structuredClone(f.room());expect(f.send(f.host,'chaos:activate',{cardId:id},{[key]:'old-context'}).status).toBe('rejected');expect(f.room()).toEqual(before);}
+    const late=f.command(f.host,'chaos:activate',{cardId:id});f.advance(5000);const closed=structuredClone(f.room());expect(f.manager.command(f.host,late).status).toBe('rejected');expect(f.room()).toEqual(closed);expect(f.view().party!.chaos.usedThisRound).toBe(false);expect(f.view().party!.chaos.inventories[0]!.cards).toHaveLength(1);
+  });
+  it('settles moved hands against their original wager owners and ranks final balances correctly',()=>{
+    const f=betting(2,['10','10','10','9','6','7']);expect(f.send(f.host,'bet:submit',{amount:50}).status).toBe('ok');expect(f.send(f.actors[1]!,'bet:submit',{amount:200}).status).toBe('ok');f.advance(RULES.bettingMs+RULES.dealingMs);const swap=card(f,0,'HAND_SWAP');expect(play(f,0,swap,f.actors[1]).status).toBe('ok');f.advance(5000);finish(f);
+    expect(f.view().roundPayouts.map(p=>({playerId:p.playerId,stake:p.stake,returned:p.returned}))).toEqual([{playerId:f.host,stake:50,returned:0},{playerId:f.actors[1],stake:200,returned:400}]);expect(f.view().players.map(p=>p.balance)).toEqual([950,1200]);
+    f.advance(RULES.resultMs+20000);expect(f.view().round).toBe(2);expect(f.room().discarded).toEqual([]);f.advance(RULES.bettingMs+RULES.resultMs+20000);f.advance(RULES.bettingMs+RULES.resultMs);expect(f.view().phase).toBe('RESULTS');expect(f.view().results!.standings.map(p=>p.id)).toEqual([f.actors[1],f.host]);assertRoom(f.room());
+  });
+  it('accepts a movement in the final millisecond without extending the published window',()=>{
+    const f=movement(),id=card(f,0,'TABLE_TURN'),deadline=f.view().deadline;f.advance(4999);expect(play(f,0,id).status).toBe('ok');expect(f.view().deadline).toBe(deadline);expect(f.view().phase).toBe('HAND_CHAOS');f.advance(1);expect(f.view().phase).toBe('PLAYER_TURN');expect(f.view().deadline!-f.view().serverTime).toBe(RULES.decisionMs);assertRoom(f.room());
+  });
+  it('keeps the single shared clock running when fewer than two movement recipients remain',()=>{
+    const f=movement(),id=card(f,0,'TABLE_TURN'),deadline=f.view().deadline;for(const actor of f.actors.slice(1))f.manager.presence(actor,false);const before=structuredClone(f.room());expect(play(f,0,id).status).toBe('rejected');expect(f.room()).toEqual(before);expect(f.view().deadline).toBe(deadline);f.advance(5000);expect(f.view().phase).toBe('PLAYER_TURN');expect(f.view().party!.chaos.inventories[0]!.cards).toHaveLength(1);assertRoom(f.room());
+  });
+  it('accepts finite fractional clock deadlines throughout the movement window',()=>{
+    const f=fixture({mode:'PARTY',ranks:['6','9','10','6','8','7','3']});f.advance(0.5);f.start();f.advance(22000);f.bet();f.advance(RULES.bettingMs+RULES.dealingMs);expect(f.view().phase).toBe('HAND_CHAOS');expect(f.view().deadline!%1).toBe(0.5);const id=card(f,0,'HAND_SWAP');expect(play(f,0,id,f.actors[1]).status).toBe('ok');assertRoom(f.room());f.advance(5000);expect(f.view().phase).toBe('PLAYER_TURN');expect(f.view().deadline!-f.view().serverTime).toBe(RULES.decisionMs);assertRoom(f.room());
+  });
+});
+
+describe('Second Chance replaces one ordinary hit without rewriting truth',()=>{
+  it('survives reconnect, redraws once, issues a fresh bounded decision and rejects old decision races',()=>{
+    const f=ordinary(),id=card(f,0,'SECOND_CHANCE');expect(f.send(f.host,'turn:hit').status).toBe('ok');const hand=structuredClone(f.room().players[0]!.hand),cursor=f.room().cursor,oldHit=f.command(f.host,'turn:hit'),decision=f.view().decisionId;
+    f.manager.presence(f.host,false);f.manager.presence(f.host,true);expect(f.view().party!.chaos.actions.find(a=>a.cardId===id)?.eligible).toBe(true);f.advance(7000);
+    const redraw=f.command(f.host,'chaos:activate',{cardId:id}),ack=f.manager.command(f.host,redraw);expect(ack.status).toBe('ok');expect(f.view().players[0]!.hand).toEqual([...hand.slice(0,-1),f.room().shoe[cursor]]);expect(f.view().discarded).toEqual([hand.at(-1)]);expect(f.room().cursor).toBe(cursor+1);expect(f.view().decisionId).not.toBe(decision);expect(f.view().deadline!-f.view().serverTime).toBe(RULES.decisionMs);
+    const after=structuredClone(f.room());expect(f.manager.command(f.host,oldHit).code).toBe('STALE_DECISION');expect(f.manager.command(f.host,redraw)).toEqual(ack);expect(f.room()).toEqual(after);expect(f.view().party!.chaos.usedThisRound).toBe(true);expect(f.room().party!.chaos.ordinaryHits[f.host]).toBeUndefined();assertRoom(f.room());
+  });
+  it('replaces the latest of multiple ordinary hits and can produce a final bust without refunding the card',()=>{
+    const f=ordinary(),id=card(f,0,'SECOND_CHANCE');expect(f.send(f.host,'turn:hit').status).toBe('ok');const firstHit=f.room().players[0]!.hand.at(-1)!;expect(f.send(f.host,'turn:hit').status).toBe('ok');const latest=f.room().players[0]!.hand.at(-1)!;expect(play(f,0,id).status).toBe('ok');
+    expect(f.view().players[0]).toMatchObject({status:'bust',value:{total:25,bust:true}});expect(f.view().players[0]!.hand).toContainEqual(firstHit);expect(f.view().discarded).toEqual([latest]);expect(f.view().activePlayerId).toBe(f.actors[1]);expect(f.view().party!.chaos.inventories[0]!.cards).toEqual([]);assertRoom(f.room());
+  });
+  it.each<Rank>(['9','K'])('cannot undo an ordinary %s hit that reaches 21 or bust',hit=>{
+    const f=ordinary(['6','9','10','6','8','7',hit,'2']),id=card(f,0,'SECOND_CHANCE');expect(f.send(f.host,'turn:hit').status).toBe('ok');const before=structuredClone(f.room());expect(play(f,0,id).status).toBe('rejected');expect(f.room()).toEqual(before);expect(f.view().discarded).toEqual([]);expect(f.view().party!.chaos.inventories[0]!.cards).toHaveLength(1);
+  });
+  it('cannot redraw before an ordinary hit, for another owner, or with a stale decision',()=>{
+    const f=ordinary(),id=card(f,0,'SECOND_CHANCE'),foreign=card(f,1,'SECOND_CHANCE');let before=structuredClone(f.room());expect(play(f,0,id).status).toBe('rejected');expect(f.room()).toEqual(before);expect(f.send(f.host,'turn:hit').status).toBe('ok');before=structuredClone(f.room());
+    expect(play(f,1,foreign).status).toBe('rejected');expect(f.send(f.host,'chaos:activate',{cardId:id},{decisionId:'old-decision'}).status).toBe('rejected');expect(f.send(f.host,'chaos:activate',{cardId:foreign}).status).toBe('rejected');expect(f.room()).toEqual(before);
+  });
+  it('cannot consume the same round allowance twice or recursively redraw the replacement',()=>{
+    const f=ordinary(),first=card(f,0,'SECOND_CHANCE');expect(f.send(f.host,'turn:hit').status).toBe('ok');expect(play(f,0,first).status).toBe('ok');const second=card(f,0,'SECOND_CHANCE'),before=structuredClone(f.room());expect(play(f,0,second).status).toBe('rejected');expect(f.room()).toEqual(before);expect(f.view().discarded).toHaveLength(1);expect(f.view().party!.chaos.inventories[0]!.cards).toEqual([{id:second,kind:'SECOND_CHANCE'}]);
+  });
+  it('retains the card, marker, decision and original hand when the shoe is exhausted',()=>{
+    const f=ordinary(),id=card(f,0,'SECOND_CHANCE');f.send(f.host,'turn:hit');f.room().shoe.length=f.room().cursor;const before=structuredClone(f.room());expect(play(f,0,id)).toMatchObject({status:'rejected',code:'SHOE_EXHAUSTED'});expect(f.room()).toEqual(before);assertRoom(f.room());
+  });
+  it('consumes only the chosen redraw card while retaining another held card in the full inventory',()=>{
+    const f=ordinary(),chosen=card(f,0,'SECOND_CHANCE');f.room().party!.chaos.inventories[f.host]!.push({id:'held-table-turn',kind:'TABLE_TURN'});f.send(f.host,'turn:hit');expect(play(f,0,chosen).status).toBe('ok');expect(f.view().party!.chaos.inventories[0]!.cards).toEqual([{id:'held-table-turn',kind:'TABLE_TURN'}]);expect(f.view().party!.chaos.usedThisRound).toBe(true);assertRoom(f.room());
+  });
+  it('cannot rewrite an accepted challenge, but a later ordinary hit may be redrawn without altering historical truth',()=>{
+    const f=ordinary(),id=card(f,0,'SECOND_CHANCE');expect(f.send(f.host,'bluff:offer',{claimType:'NEXT_HIT_SAFE',amount:100}).status).toBe('ok');expect(f.send(f.actors[1]!,'bluff:accept').status).toBe('ok');const truth=structuredClone(f.room().bluffOutcomes),biggest=structuredClone(f.room().biggestBluff);let before=structuredClone(f.room());expect(play(f,0,id).status).toBe('rejected');expect(f.room()).toEqual(before);
+    f.advance(RULES.revealMs);before=structuredClone(f.room());expect(play(f,0,id).status).toBe('rejected');expect(f.room()).toEqual(before);expect(f.send(f.host,'turn:hit').status).toBe('ok');expect(play(f,0,id).status).toBe('ok');expect(f.room().bluffOutcomes).toEqual(truth);expect(f.room().biggestBluff).toEqual(biggest);expect(f.view().players[0]!.hand).toContainEqual(truth[0]!.card);expect(f.view().discarded).not.toContainEqual(truth[0]!.card);assertRoom(f.room());
+  });
+  it('clears the old ordinary-hit permission when a later accepted challenge becomes the newest draw',()=>{
+    const f=ordinary(),id=card(f,0,'SECOND_CHANCE');f.send(f.host,'turn:hit');expect(f.send(f.host,'bluff:offer',{claimType:'NEXT_HIT_SAFE',amount:100}).status).toBe('ok');expect(f.send(f.actors[1]!,'bluff:accept').status).toBe('ok');f.advance(RULES.revealMs);const before=structuredClone(f.room());expect(play(f,0,id).status).toBe('rejected');expect(f.room()).toEqual(before);expect(f.room().party!.chaos.ordinaryHits[f.host]).toBeUndefined();
+  });
+  it('rejects redraw at the exact decision deadline and leaves the consumed hand unchanged',()=>{
+    const f=ordinary(),id=card(f,0,'SECOND_CHANCE');f.send(f.host,'turn:hit');const late=f.command(f.host,'chaos:activate',{cardId:id});f.advance(RULES.decisionMs);const before=structuredClone(f.room());expect(f.manager.command(f.host,late).status).toBe('rejected');expect(f.room()).toEqual(before);expect(f.view().players[0]!.status).toBe('stood');expect(f.view().discarded).toEqual([]);
+  });
+  it('settles the replacement hand once, then clears consumed discards and hit markers for the next round and replay',()=>{
+    const f=ordinary(),id=card(f,0,'SECOND_CHANCE');f.send(f.host,'turn:hit');expect(play(f,0,id).status).toBe('ok');finish(f);expect(f.view().players.map(p=>p.balance)).toEqual([900,1000]);expect(f.view().discarded).toHaveLength(1);const round=f.view().roundId;
+    f.advance(RULES.resultMs+20000);expect(f.view().round).toBe(2);expect(f.view().roundId).not.toBe(round);expect(f.view().discarded).toEqual([]);expect(f.room().party!.chaos.ordinaryHits).toEqual({});expect(f.view().party!.chaos.handWindow).toBeNull();
+    f.advance(RULES.bettingMs+RULES.resultMs+20000);f.advance(RULES.bettingMs+RULES.resultMs);expect(f.view().phase).toBe('RESULTS');expect(f.send(f.host,'results:return').status).toBe('ok');expect(f.view().discarded).toEqual([]);f.start();expect(f.view().phase).toBe('HOUSE_AUCTION');expect(f.view().discarded).toEqual([]);expect(f.room().party!.chaos.ordinaryHits).toEqual({});assertRoom(f.room());
   });
 });

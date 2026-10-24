@@ -10,7 +10,7 @@ import {cancelPlayerInvites} from './game/duels.js';
 
 const TYPES:CommandType[]=['room:create','room:join','lobby:ready','lobby:mode','house:bid','house:ballot','house:vote','house:choose','chaos:activate','chaos:optin','duel:invite','duel:reject','duel:accept','duel:choose','duel:move','duel:resign','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
 const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','auctionId','socialId','inviteId','duelId','throwId','moveId','ballotId','chaosWindowId','payload'];
-const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'house:bid':['amount'],'house:vote':['yes'],'house:choose':['game','coinSide'],'chaos:activate':['cardId'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'duel:move':['column','from','to','promotion'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
+const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'house:bid':['amount'],'house:vote':['yes'],'house:choose':['game','coinSide'],'chaos:activate':['cardId','targetId'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'duel:move':['column','from','to','promotion'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
 function canonical(value:unknown):string {if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;if(value&&typeof value==='object')return `{${Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical((value as Record<string,unknown>)[k])).join(',')}}`;return JSON.stringify(value);}
 export function validateCommand(raw:unknown):Command {
   requireRule(raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_REQUEST');
@@ -113,6 +113,7 @@ export class RoomManager {
               addEvent(d,this.e,'leave',`${p.name} left the table.`,now,id);this.presenceRules(d,now);break;
             case 'results:return':{
               requireRule(d.phase==='RESULTS','PHASE_LOCKED');
+              d.discarded=[];
               // Archive economic records outside the reset gameplay state.
               d.phase='LOBBY';d.lobbyId=this.e.id();d.matchId=undefined;d.roundId=undefined;d.round=0;d.initialChips=0;d.dealerNet=0;d.shoe=[];d.cursor=0;d.dealer=[];d.dealerRevealed=false;d.deadline=null;d.decisionId=undefined;d.bettingId=undefined;d.bluff=null;d.biggestBluff=null;d.bluffOutcomes=[];d.results=null;d.resultsSince=null;d.recoveryDeadline=null;d.terminationConfirmed=false;
               d.players=d.players.filter(p=>!p.departed);for(const player of d.players){player.account=account();player.hand=[];player.wager=0;player.wagerId=undefined;player.status='waiting';player.ready=false;player.participating=false;player.bluffUsed=false;player.bluffWins=0;player.bluffLosses=0;if(!player.connected)player.disconnectedAt=now;}

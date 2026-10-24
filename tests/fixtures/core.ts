@@ -15,7 +15,7 @@ export function fixture(options:{players?:number;ranks?:Rank[];maxRooms?:number;
   const room=()=>manager.roomFor(host)!;
   const command=(actor:string,type:CommandType,payload?:Record<string,unknown>,extra:Partial<Command>={}):Command=>{
     const state=manager.snapshot(actor);
-    return {requestId:`request-${++requests}`,type,...(state?{roomInstanceId:state.instanceId,lobbyId:state.lobbyId,matchId:state.matchId,roundId:state.roundId,decisionId:state.decisionId,bettingId:state.bettingId,offerId:state.bluff?.id,auctionId:state.party?.auction.id,socialId:state.party?.social?.id,ballotId:state.party?.social?.ballot?.id,duelId:state.party?.social?.duel?.id,throwId:state.party?.social?.duel?.throwId,moveId:state.party?.social?.duel?.connect4?.moveId??state.party?.social?.duel?.chess?.moveId,chaosWindowId:state.party?.chaos.potTwist?.id}:{}),...(payload?{payload}:{}),...extra};
+    return {requestId:`request-${++requests}`,type,...(state?{roomInstanceId:state.instanceId,lobbyId:state.lobbyId,matchId:state.matchId,roundId:state.roundId,decisionId:state.decisionId,bettingId:state.bettingId,offerId:state.bluff?.id,auctionId:state.party?.auction.id,socialId:state.party?.social?.id,ballotId:state.party?.social?.ballot?.id,duelId:state.party?.social?.duel?.id,throwId:state.party?.social?.duel?.throwId,moveId:state.party?.social?.duel?.connect4?.moveId??state.party?.social?.duel?.chess?.moveId,chaosWindowId:state.phase==='HAND_CHAOS'?state.party?.chaos.handWindow?.id:state.party?.chaos.potTwist?.id}:{}),...(payload?{payload}:{}),...extra};
   };
   const send=(actor:string,type:CommandType,payload?:Record<string,unknown>,extra:Partial<Command>={})=>manager.command(actor,command(actor,type,payload,extra));
   for(const [i,actor] of actors.entries()){
@@ -29,6 +29,6 @@ export function fixture(options:{players?:number;ranks?:Rank[];maxRooms?:number;
   };
   const advance=(ms:number)=>{now+=ms;manager.reconcile();};
   const bet=(amount=100)=>{for(const actor of actors){const result=send(actor,'bet:submit',{amount});if(result.status!=='ok')throw new Error(`Fixture bet failed: ${result.code}`);}};
-  const deal=()=>advance(RULES.bettingMs+RULES.dealingMs);
+  const deal=()=>{advance(RULES.bettingMs+RULES.dealingMs);if(view().phase==='HAND_CHAOS')advance(5000);};
   return {manager,actors,host,view,room,command,send,start,advance,bet,deal};
 }

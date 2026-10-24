@@ -711,3 +711,13 @@ button { transition: background .16s, border-color .16s, transform .16s, box-sha
 .chaos-rules summary { color: #e4c893; padding: 10px 0; cursor: pointer; }
 .chaos-rules > div { padding: 10px 0; } .chaos-rules h3 { margin: 5px 0; color: #e6d6b8; font-size: 14px; }
 @media (max-width: 620px) { .chaos-panel { padding: 16px; } .chaos-panel h2 { font-size: 24px; } .chaos-hand { grid-template-columns: 1fr; } .chaos-card, .pot-twist { padding: 16px; } .chaos-allowance { max-width: 95px; line-height: 1.5; } .chaos-public { gap: 7px; } .chaos-public > div { padding: 10px; } }
+
+.hand-chaos-window { margin: 18px 0; padding: 18px; background: #10271f; border: 1px solid #9d8758; border-radius: 8px; }
+.hand-chaos-window h3 { margin: 0; color: #f1d49a; font: 23px/1.4 var(--serif); }
+.hand-chaos-window p, .discarded-cards p { font-size: 13px; line-height: 1.7; color: #c9c1ab; }
+.chaos-target { width: 100%; margin-top: 12px; color: #ddcfb2; font-size: 12px; }
+.chaos-target select { display: block; width: 100%; margin-top: 8px; padding: 12px; border: 1px solid #88774e; border-radius: 5px; background: #1c251e; color: #f4e5c6; font: inherit; }
+.discarded-cards { padding: 20px; margin: 22px 0; border: 1px solid #675e49; border-radius: 10px; background: #1c201a; }
+.discarded-cards h2 { font: 25px/1.3 var(--serif); color: #dfcda8; margin-top: 0; }
+.discarded-cards .cards { justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
+@media (max-width: 620px) { .hand-chaos-window { padding: 14px; } .hand-chaos-window .duel-heading { align-items: flex-start; } .hand-chaos-window h3 { font-size: 20px; } }

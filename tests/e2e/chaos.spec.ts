@@ -86,7 +86,7 @@ test('a genuinely earned Emergency Fund spends the finite reserve once and remai
     await page.getByRole('button', { name: 'Bet 250 chips', exact: true }).click();
     await page.getByRole('button', { name: 'Place Bet' }).click();
   }
-  table.advance(21000);
+  table.advance(26000);
   for (const page of pages) await page.getByRole('button', { name: 'Stand', exact: false }).click();
   table.advance(350);
   await expect(pages[0].getByRole('heading', { name: 'Round settled', exact: true })).toBeVisible();

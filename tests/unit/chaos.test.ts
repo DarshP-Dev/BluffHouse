@@ -10,11 +10,11 @@ function grant(f:ReturnType<typeof fixture>,randomIndex=vi.fn(()=>0)){const e={.
 function held(f:ReturnType<typeof fixture>){return f.room().players.map(p=>(f.room().party!.chaos.inventories[p.id]??[]).length);}
 
 describe('Chaos grants, inventory and projections',()=>{
-  it('includes everyone tied at the second-lowest position and excludes higher balances',()=>{const f=prepared(5);values(f,[100,200,200,200,300]);const rng=grant(f);expect(held(f)).toEqual([1,1,1,1,0]);expect(rng).toHaveBeenCalledTimes(4);expect(rng).toHaveBeenNthCalledWith(1,4);assertChaos(f.room());});
+  it('includes everyone tied at the second-lowest position and excludes higher balances',()=>{const f=prepared(5);values(f,[100,200,200,200,300]);const rng=grant(f);expect(held(f)).toEqual([1,1,1,1,0]);expect(rng).toHaveBeenCalledTimes(4);expect(rng).toHaveBeenNthCalledWith(1,7);assertChaos(f.room());});
   it('grants all tied players, including temporarily absent participants, but excludes departed participants',()=>{const f=prepared(5);f.room().players[1]!.connected=false;f.room().players[3]!.departed=true;grant(f);expect(held(f)).toEqual([1,1,1,0,1]);expect(f.room().events.filter(e=>e.kind==='chaos')).toHaveLength(4);});
   it('selects only the two lowest positions when no ties exist and includes a sole remaining eligible participant',()=>{const f=prepared();values(f,[400,100,300,200]);grant(f);expect(held(f)).toEqual([0,1,0,1]);const lone=prepared(3);lone.room().players[1]!.departed=true;lone.room().players[2]!.departed=true;grant(lone);expect(held(lone)).toEqual([1,0,0]);});
   it('uses the released registry RNG order and skips a full inventory without drawing or replacing cards',()=>{
-    expect(CHAOS_RULES.map(r=>r.kind)).toEqual(['DOUBLE_DOWN','TRIPLE_DOWN','POT_TWIST','EMERGENCY_FUND']);const f=prepared(),chaos=f.room().party!.chaos;
+    expect(CHAOS_RULES.map(r=>r.kind)).toEqual(['DOUBLE_DOWN','TRIPLE_DOWN','POT_TWIST','EMERGENCY_FUND','HAND_SWAP','TABLE_TURN','SECOND_CHANCE']);const f=prepared(),chaos=f.room().party!.chaos;
     chaos.inventories[f.host]=[{id:'held-a',kind:'DOUBLE_DOWN'},{id:'held-b',kind:'TRIPLE_DOWN'}];const rng=vi.fn().mockReturnValueOnce(1).mockReturnValueOnce(2).mockReturnValueOnce(3);grant(f,rng);
     expect(chaos.inventories[f.host]!.map(c=>c.id)).toEqual(['held-a','held-b']);expect(f.room().players.slice(1).map(p=>chaos.inventories[p.id]![0]!.kind)).toEqual(['TRIPLE_DOWN','POT_TWIST','EMERGENCY_FUND']);expect(rng).toHaveBeenCalledTimes(3);expect(f.room().events.some(e=>e.text.includes('inventory is full'))).toBe(true);assertChaos(f.room());
   });

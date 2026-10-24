@@ -1,6 +1,7 @@
 import {RULES,type ChaosKind,type ChaosRule,type ChaosView,type Command} from '@bluff-house/shared';
 import {available,credit,reserve} from './ledger.js';
 import {addEvent} from './engine.js';
+import {eligibleHands,handCardReason,applyHandCard} from './chaos-hands.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export const CHAOS_RULES:ChaosRule[]=[
@@ -8,6 +9,9 @@ export const CHAOS_RULES:ChaosRule[]=[
   {kind:'TRIPLE_DOWN',name:'Triple Down Chaos',window:'Betting, after submitting a wager',effect:'Fund three times your original wager, up to 750 chips. Replacing or withdrawing removes the effect; the card stays spent.'},
   {kind:'POT_TWIST',name:'Pot Twist',window:'Activate during betting with a wager; opt in for five seconds after betting closes',effect:'Open a voluntary funded doubling opportunity for already submitted wagers, up to 750 chips. Each recipient uses their round allowance. The owner must also opt in.'},
   {kind:'EMERGENCY_FUND',name:'Emergency Fund',window:'Betting, before submitting a wager; once per player per match',effect:'Receive up to 100 chips from the finite bonus reserve. A smaller remaining award is disclosed; an empty reserve leaves the card held.'},
+  {kind:'HAND_SWAP',name:'Hand Swap',window:'The five-second window after natural checks, before ordinary decisions',effect:'Exchange your funded, connected, unacted, non-natural two-card hand with another eligible hand. Wagers, seats and bluff allowances stay with their owners. Only one movement resolves per window.'},
+  {kind:'TABLE_TURN',name:'Table Turn',window:'The five-second window after natural checks, before ordinary decisions',effect:'Move all eligible hands one seat left. The dealer, naturals, and disconnected or unfunded hands stay fixed. Wagers and bluff allowances stay with seats. Only one movement resolves per window.'},
+  {kind:'SECOND_CHANCE',name:'Second Chance',window:'Your next decision after an ordinary Hit leaves a live total below 21',effect:'Discard and replace that one ordinary Hit from the existing shoe. The discard stays consumed. A new decision gets 20 seconds. Cannot undo a bust, 21, natural, challenged draw, protected reveal or settled result.'},
 ];
 
 function baseReason(r:Room,p:Player):string|null{
@@ -27,9 +31,10 @@ function stakeReason(r:Room,p:Player,factor:2|3):string|null{
 }
 function cardReason(r:Room,p:Player,kind:ChaosKind):string|null{
   const common=baseReason(r,p);if(common)return common;
-  if(r.phase!=='BETTING')return 'Play this card during betting.';
   const chaos=r.party!.chaos;
   if(chaos.usedRound[p.id]===r.roundId)return 'You have already used your Chaos allowance this round.';
+  if(kind==='HAND_SWAP'||kind==='TABLE_TURN'||kind==='SECOND_CHANCE')return handCardReason(r,p,kind);
+  if(r.phase!=='BETTING')return 'Play this card during betting.';
   if(kind==='EMERGENCY_FUND'){
     if(p.wagerId||p.wager)return 'Withdraw your wager before requesting Emergency Fund.';
     if(chaos.emergencyUsed.includes(p.id))return 'Emergency Fund is available once per player per match.';
@@ -72,7 +77,7 @@ export function grantChaos(r:Room,e:EngineOptions,now:number){
   chaos.grantedRounds.push(r.roundId);
 }
 
-export function resetChaosRound(r:Room){if(r.party){r.party.chaos.multipliers={};r.party.chaos.potTwist=null;}}
+export function resetChaosRound(r:Room){if(r.party){r.party.chaos.multipliers={};r.party.chaos.potTwist=null;r.party.chaos.handWindow=null;r.party.chaos.ordinaryHits={};}}
 export function clearWagerEffect(r:Room,p:Player){if(r.party)delete r.party.chaos.multipliers[p.id];}
 
 export function chaosCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
@@ -86,11 +91,14 @@ export function chaosCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:numbe
     addEvent(r,e,'chaos',`${p.name} opts into Pot Twist: ${p.wager} chips funded.`,now,p.id);return;
   }
   requireRule(c.type==='chaos:activate','UNAVAILABLE_ACTION');
-  requireRule(r.phase==='BETTING'&&c.bettingId===r.bettingId&&r.deadline!==null&&now<r.deadline,'STALE_BETTING','Betting is closed or this round has changed.');
   const inventory=chaos.inventories[p.id]??[],card=inventory.find(card=>card.id===c.payload?.cardId);
   requireRule(card,'CARD_NOT_HELD','That Chaos card is no longer in your inventory.');
+  const handEffect=card.kind==='HAND_SWAP'||card.kind==='TABLE_TURN'||card.kind==='SECOND_CHANCE';
+  if(!handEffect)requireRule(r.phase==='BETTING'&&c.bettingId===r.bettingId&&r.deadline!==null&&now<r.deadline,'STALE_BETTING','Betting is closed or this round has changed.');
   const reason=cardReason(r,p,card.kind);requireRule(!reason,'CHAOS_UNAVAILABLE',reason??undefined);
-  if(card.kind==='EMERGENCY_FUND'){
+  if(handEffect){
+    applyHandCard(r,p,card.kind,c,e,now);
+  }else if(card.kind==='EMERGENCY_FUND'){
     const amount=Math.min(100,r.party.bonusReserve),id=`${r.matchId}:${p.id}:emergency-fund`;
     requireRule(credit(p.account,id,amount),'EMERGENCY_ALREADY_SETTLED');
     r.party.bonusReserve-=amount;chaos.emergencyUsed.push(p.id);r.party.transfers.push({id,kind:'bonus',amount,from:'BONUS_RESERVE',to:p.id,roundId:r.roundId});
@@ -116,7 +124,9 @@ export function closePotTwist(r:Room){const window=r.party?.chaos.potTwist;if(wi
 export function projectChaos(r:Room,viewerId:string):ChaosView{
   requireRule(r.party,'PARTY_REQUIRED');const chaos=r.party.chaos,p=r.players.find(p=>p.id===viewerId);
   const optReason=p?optInReason(r,p):'Only current match participants can opt in.';
-  return {registry:CHAOS_RULES.map(rule=>({...rule})),inventories:r.players.filter(p=>p.participating).map(p=>({playerId:p.id,cards:(chaos.inventories[p.id]??[]).map(card=>({...card}))})),actions:p?(chaos.inventories[p.id]??[]).map(card=>{const reason=cardReason(r,p,card.kind);return {cardId:card.id,eligible:!reason,reason:reason??'Ready to activate.'};}):[],usedThisRound:!!r.roundId&&chaos.usedRound[viewerId]===r.roundId,emergencyUsed:chaos.emergencyUsed.includes(viewerId),emergencyAmount:Math.min(100,r.party.bonusReserve),potTwist:chaos.potTwist?{...chaos.potTwist,optedInIds:[...chaos.potTwist.optedInIds]}:null,optInEligible:!optReason,optInReason:optReason??'Fund a double of your submitted wager.',multipliers:Object.entries(chaos.multipliers).map(([playerId,m])=>({playerId,...m}))};
+  const handEligible=r.phase==='HAND_CHAOS'?eligibleHands(r).map(player=>player.id):[];
+  const handTargets=p&&!cardReason(r,p,'HAND_SWAP')?handEligible.filter(id=>id!==viewerId):[];
+  return {registry:CHAOS_RULES.map(rule=>({...rule})),inventories:r.players.filter(p=>p.participating).map(p=>({playerId:p.id,cards:(chaos.inventories[p.id]??[]).map(card=>({...card}))})),actions:p?(chaos.inventories[p.id]??[]).map(card=>{const reason=cardReason(r,p,card.kind);return {cardId:card.id,eligible:!reason,reason:reason??'Ready to activate.'};}):[],usedThisRound:!!r.roundId&&chaos.usedRound[viewerId]===r.roundId,emergencyUsed:chaos.emergencyUsed.includes(viewerId),emergencyAmount:Math.min(100,r.party.bonusReserve),potTwist:chaos.potTwist?{...chaos.potTwist,optedInIds:[...chaos.potTwist.optedInIds]}:null,handWindow:chaos.handWindow?{...chaos.handWindow,eligibleIds:handEligible}:null,handTargets,optInEligible:!optReason,optInReason:optReason??'Fund a double of your submitted wager.',multipliers:Object.entries(chaos.multipliers).map(([playerId,m])=>({playerId,...m}))};
 }
 
 /** A held legal Emergency Fund can keep the next betting phase reachable. */
@@ -149,4 +159,9 @@ export function assertChaos(r:Room){
   }
   const window=chaos.potTwist;
   if(window){requireRule(window.roundId===r.roundId&&new Set(window.optedInIds).size===window.optedInIds.length,'POT_TWIST_INVARIANT');if(window.status==='open')requireRule(r.phase==='POT_TWIST'&&window.deadline===r.deadline,'POT_TWIST_DEADLINE_INVARIANT');}
+  if(chaos.handWindow){const hand=chaos.handWindow;requireRule(typeof hand.id==='string'&&!!hand.id&&Number.isFinite(hand.deadline)&&typeof hand.resolved==='boolean','HAND_WINDOW_INVARIANT');if(r.phase==='HAND_CHAOS')requireRule(r.deadline===hand.deadline&&!r.activePlayerId&&!r.decisionId,'HAND_WINDOW_DEADLINE_INVARIANT');}
+  for(const [playerId,marker] of Object.entries(chaos.ordinaryHits)){
+    const p=r.players.find(player=>player.id===playerId);
+    requireRule(p&&p.participating&&p.hand.at(-1)?.id===marker.cardId&&typeof marker.decisionId==='string'&&!!marker.decisionId,'ORDINARY_HIT_INVARIANT');
+  }
 }

@@ -47,7 +47,7 @@ test('four guests seal House bids, receive full Blackjack payouts and replay wit
   }
   table.advance(2000);
   for (const page of pages) await page.getByRole('button', { name: 'Place Bet' }).click();
-  table.advance(21000);
+  table.advance(26000);
   for (const page of pages) await page.getByRole('button', { name: 'Stand', exact: false }).click();
   table.advance(350);
   for (const page of pages) {
