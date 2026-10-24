@@ -172,7 +172,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: Play short matches in each board game, try an illegal/full-column move, observe clock expiry, and verify that spectators and both participants see the same result.
   Commit: `feat: add timed Connect 4 and Bullet Chess duels`
 
-- [ ] **7. Vote for the House's Last Stand**
+- [x] **7. Vote for the House's Last Stand**
   Becomes usable: Eligible players overthrow or defend the current House through a visible ballot and a real duel.
   Why now: Depends on House tenure in slice 4 and the verified games from slices 5–6; connects social votes to actual role control without duplicating contest logic.
   PRD ref: `prd.md > Possible Later Enhancements`; `vision.md > 2. Become the House`; proposed `House auction, commission, and overthrow` rules.
@@ -387,6 +387,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run typecheck` passed. Required House/overthrow/duel focused tests passed **106 tests / 3 files**. `npm test` passed **379 tests / 19 files**. Tests cover voter thresholds 1–5, frozen denominators, reconnect/observer eligibility, scoped duplicates, failed RNG rollback, no connected affirmative candidate, all four zero-stake games, draw defense, selection expiry, absent House/challenger, role/host separation, tenure reset, new commission ownership, replay and once-only statistics/history.
 - Production build and `npm run test:e2e -- tests/e2e/overthrow.spec.ts tests/e2e/match.spec.ts` passed **5 browser tests**. Four guests complete an RPS overthrow, see the same new crown, then observe the next round's full natural return and the new House's separate four-chip commission. Selection timeout and failed-ballot admission boundaries pass; both Classic bluff outcomes still pass. Ordinary RPS/Coin browser tests passed separately (**2 tests**). An initial timeout-test expectation contradicted the approved forfeiture rule; corrected the expectation and explanatory copy, then reran the fresh-build contract successfully.
 - Inspected the 390px crown-transfer screen; no horizontal overflow, no fictitious zero-chip pot, and the House remains visually distinct from the host. Physical second-device LAN confirmation remains pending. No deployment or purchase occurred.
+- Verified implementation commit: `65d4c9d`. Next slice: funded monetary Chaos cards and opt-in wager effects.
 
 ## Revisions
 
