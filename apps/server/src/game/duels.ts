@@ -41,7 +41,6 @@ export function rpsWinner(first:RpsChoice|null,second:RpsChoice|null):0|1|-1{
 function finishDuel(r:Room,d:DuelState,e:EngineOptions,now:number,winnerId:string|null,reason:string){
   if(d.status==='settled')return;
   if(d.chess){const clock=d.chess;clock.remainingMs[clock.turnId]=Math.max(0,clock.remainingMs[clock.turnId]-Math.max(0,now-clock.clockStartedAt));clock.clockStartedAt=now;}
-  if(d.chess){const view=d.chess;view.remainingMs[view.turnId]=Math.max(0,view.remainingMs[view.turnId]-Math.max(0,now-view.clockStartedAt));view.clockStartedAt=now;}
   const first=player(r,d.inviterId),second=player(r,d.defenderId);
   for(const p of [first,second])settle(p.account,stakeKey(d.id,p.id),winnerId?(p.id===winnerId?d.amount*2:0):d.amount);
   d.status='settled';d.winnerId=winnerId;d.reason=reason;d.throwId=undefined;d.choices={};

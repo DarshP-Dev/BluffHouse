@@ -377,6 +377,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - Production build passed. Combined board/duel/Classic browser verification passed **6 tests**. After final clock/rules changes, `npm run test:e2e -- tests/e2e/board-duels.spec.ts tests/e2e/match.spec.ts` passed **4 tests**. Four guests play real vertical Connect 4 and keyboard-completed chess checkmate, refresh without extending deadlines, observe matching boards/payouts, resume Blackjack and reach settled results. Additional browser checks exercise move expiry and flag fall across reconnect. Both Classic bluff outcomes remain passing.
 - Inspected Connect 4 mobile, chess mobile and desktop checkmate screenshots; no horizontal overflow. Physical second-device LAN confirmation remains pending. No deployment or purchase occurred.
 - Verified implementation commit: `49a6086`. Next slice: House tenure, overthrow ballots and a real Last Stand duel.
+- Post-verification review removed a redundant, idempotent chess-clock freeze statement; focused chess/duel regression passes **84 tests / 2 files**. The initial Slice 6 push was rejected because Git Credential Manager selected a different account; remote `main` remained at the verified Slice 5 commit. GitHub CLI already holds the authorized repository-owner account, so retry through its credential helper without changing global configuration or exposing tokens.
 
 ## Revisions
 
