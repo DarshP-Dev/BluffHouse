@@ -142,7 +142,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: Start the app using the saved PowerShell commands, play with independent profiles/friends, refresh during play, open another tab in the same profile to see “Session opened elsewhere,” and try a full bluff-to-results/replay journey. Report what felt confusing, broken, or worth changing. This is the early pause; wait for feedback and resolve it before the slice commit and expansion.
   Commit: `fix: verify multiplayer recovery and Classic lifecycle`
 
-- [ ] **4. Bid secretly for the House and earn visible commissions**
+- [x] **4. Bid secretly for the House and earn visible commissions**
   Becomes usable: Optional Party mode opens with a real sealed auction, a crowned player House, funded Vault display, itemized fees, and settled match completion.
   Why now: Depends on the verified core gate; preferred first expansion. Introduces the common Vault/economy records through a usable auction rather than a separate plumbing milestone.
   PRD ref: `prd.md > Possible Later Enhancements`, `Deferred From the POC`, `Betting and Chip Availability`; `roadmap.md > Retained Systems`; proposed rules above, `House auction, commission, and overthrow`.
@@ -355,6 +355,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - `npm run typecheck` passed; `npm test` passed **225 tests / 13 files**, including 49 new House/credit tests. Tests include stale mode/auction contexts, deadline boundaries, disconnected bids, failed edit atomicity, tie/all-pass outcomes, 75-profit rounding, six-player commission cap, once-only credits, Vault remainders, and Classic payout regression.
 - `npm run test:e2e -- tests/e2e/house.spec.ts tests/e2e/match.spec.ts` passed **3 browser tests** with its production build. Four isolated guests bid, refresh privately, observe full returns and commissions, finish three rounds, receive funded Vault shares, and replay. Both surviving and busted Classic bluff journeys still pass. Mobile auction and desktop payout screenshots were inspected; 390px layout has no overflow.
 - The main compiled server was stopped before rebuilding to avoid serving mismatched old server/new client code. No separate testing worktree was edited. Physical cross-device LAN verification remains pending; no deployment or purchase occurred.
+- Required focused ledger/House/lifecycle command passed **96 tests / 4 files**. Verified implementation commit: `e07887c`. Next slice: funded Rock Paper Scissors and Coin Flip duels.
 
 ## Revisions
 
