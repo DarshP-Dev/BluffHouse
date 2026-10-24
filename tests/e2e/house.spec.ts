@@ -8,6 +8,8 @@ test('four guests seal House bids, receive full Blackjack payouts and replay wit
   for (let i = 1; i < 4; i++) await table.join(pages[i], code, ['', 'Blair', 'Casey', 'Drew'][i]);
   await pages[1].getByRole('button', { name: 'Ready Up' }).click();
   await pages[0].getByRole('button', { name: 'Party', exact: true }).click();
+  await pages[0].getByRole('checkbox', { name: 'Shadow Draw finale', exact: true }).click();
+  await expect(pages[0].getByRole('checkbox', { name: 'Shadow Draw finale', exact: true })).not.toBeChecked();
   await expect(pages[1].getByRole('button', { name: 'Ready Up' })).toBeVisible();
   await expect(pages[1].getByRole('button', { name: 'Classic', exact: true })).toBeDisabled();
   for (const page of pages) await page.getByRole('button', { name: 'Ready Up' }).click();

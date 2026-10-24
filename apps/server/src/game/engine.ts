@@ -10,6 +10,7 @@ import {grantChaos,resetChaosRound,chaosCommand,openPotTwist,closePotTwist,clear
 import {openHandWindow,markOrdinaryHit,clearOrdinaryHit} from './chaos-hands.js';
 import {bountyCommand,refundBounties,assertBounties} from './bounties.js';
 import {dealCommand,dealsDeadline,assertDeals} from './deals.js';
+import {startShadow,shadowCommand,shadowDeadline,assertShadow} from './shadow.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -20,7 +21,7 @@ export function makePlayer(id:string,name:string,seat:number,now:number):Player 
   return {id,name,seat,joinedAt:now,connected:true,departed:false,ready:false,disconnectedAt:null,account:account(),hand:[],status:'waiting',wager:0,participating:false,bluffUsed:false,bluffWins:0,bluffLosses:0};
 }
 export function createRoom(code:string,player:Player,e:EngineOptions):Room {
-  return {mode:'CLASSIC',roundLimit:3,party:null,roundPayouts:[],instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,discarded:[],dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
+  return {mode:'CLASSIC',roundLimit:3,finaleEnabled:false,party:null,roundPayouts:[],instanceId:e.id(),code,revision:0,lobbyId:e.id(),hostId:player.id,phase:'LOBBY',players:[player],round:0,initialChips:0,dealerNet:0,shoe:[],cursor:0,discarded:[],dealer:[],dealerRevealed:false,deadline:null,bluff:null,pausedRemaining:0,biggestBluff:null,bluffOutcomes:[],events:[],results:null,recoveryDeadline:null,terminationConfirmed:false,hostDeadline:null,emptySince:null,resultsSince:null};
 }
 export function connected(r:Room){return r.players.filter(p=>p.connected&&!p.departed&&(r.phase==='LOBBY'||p.participating));}
 export function active(r:Room):Player {const p=r.players.find(p=>p.id===r.activePlayerId);requireRule(p,'NO_ACTIVE_PLAYER');return p;}
@@ -77,7 +78,7 @@ export function results(r:Room,e:EngineOptions,now:number,reason?:string){
 }
 export function roundBoundary(r:Room,e:EngineOptions,now:number){
   if(r.terminationConfirmed){results(r,e,now,'Too few connected players after the recovery window.');return;}
-  if(r.round>=r.roundLimit){results(r,e,now);return;}
+  if(r.round>=r.roundLimit){refundBounties(r,e,now);if(!startShadow(r,e,now))results(r,e,now);return;}
   if(connected(r).length<2){r.phase='WAITING_FOR_PLAYERS';r.deadline=null;return;}
   if(!canAffordNextRound(r)){results(r,e,now,'Fewer than two connected players can afford the minimum wager.');return;}
   if(r.party&&r.round>0&&r.party.socialRound<r.round){openSocial(r,e,now);return;}
@@ -108,12 +109,14 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
     case 'DEALER_TURN': {if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
     case 'ROUND_RESULT': roundBoundary(r,e,at);break;
     case 'DEAL': dealsDeadline(r,e,at);break;
+    case 'SHADOW_DRAW':case 'SHADOW_CLAIM':case 'SHADOW_CHALLENGE':case 'SHADOW_RESULT': if(shadowDeadline(r,e,at))results(r,e,at);break;
     case 'SOCIAL':case 'LAST_STAND_CHOICE':case 'DUEL':case 'DUEL_RESULT':case 'DEAL_RESULT': if(socialDeadline(r,e,at)){closeSocial(r);roundBoundary(r,e,at);}break;
     default: requireRule(false,'INVALID_PHASE_DEADLINE');
   }
 }
 export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   switch(c.type){
+    case 'shadow:draw':case 'shadow:stand':case 'shadow:claim':case 'shadow:pass':case 'shadow:reveal':case 'shadow:challenge':shadowCommand(r,p,c,e,now);break;
     case 'deal:offer':case 'deal:accept':case 'deal:reject':case 'deal:choose':dealCommand(r,p,c,e,now);break;
     case 'bounty:contribute':case 'bounty:invite':bountyCommand(r,p,c,e,now);break;
     case 'chaos:activate':case 'chaos:optin':chaosCommand(r,p,c,e,now);break;
@@ -142,11 +145,12 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
   }
 }
 export function assertRoom(r:Room){
-  requireRule((r.roundLimit===3||r.roundLimit===6)&&(r.mode==='PARTY'||r.roundLimit===3),'ROUND_LIMIT_INVARIANT');
+  requireRule((r.roundLimit===3||r.roundLimit===6)&&typeof r.finaleEnabled==='boolean'&&(r.mode==='PARTY'||r.roundLimit===3&&!r.finaleEnabled),'ROUND_LIMIT_INVARIANT');
   assertChaos(r);
   assertDuels(r);
   assertBounties(r);
   assertDeals(r);
+  assertShadow(r);
   let total=0;
   for(const p of r.players){assertAccount(p.account);if(p.participating)total+=p.account.balance+Object.values(p.account.escrows).reduce((a,b)=>a+b,0);}
   if(r.matchId)requireRule(total+(r.party?.vault??0)+(r.party?.bonusReserve??0)===r.initialChips+(r.party?.initialBonusReserve??0)+r.dealerNet,'LEDGER_INVARIANT');

@@ -8,9 +8,9 @@ import {project} from './projection.js';
 import {cancelBluff} from './game/bluff.js';
 import {cancelPlayerInvites} from './game/duels.js';
 
-const TYPES:CommandType[]=['room:create','room:join','lobby:ready','lobby:mode','lobby:rounds','bounty:contribute','bounty:invite','deal:offer','deal:accept','deal:reject','deal:choose','house:bid','house:ballot','house:vote','house:choose','chaos:activate','chaos:optin','duel:invite','duel:reject','duel:accept','duel:choose','duel:move','duel:resign','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
-const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','auctionId','socialId','socialSlotId','dealOfferId','dealId','inviteId','duelId','throwId','moveId','ballotId','chaosWindowId','payload'];
-const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'lobby:rounds':['rounds'],'bounty:contribute':['targetId','amount'],'bounty:invite':['bountyId'],'deal:offer':['defenderId','amount'],'deal:choose':['choice'],'house:bid':['amount'],'house:vote':['yes'],'house:choose':['game','coinSide'],'chaos:activate':['cardId','targetId'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'duel:move':['column','from','to','promotion'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
+const TYPES:CommandType[]=['room:create','room:join','lobby:ready','lobby:mode','lobby:rounds','lobby:finale','bounty:contribute','bounty:invite','deal:offer','deal:accept','deal:reject','deal:choose','shadow:draw','shadow:stand','shadow:claim','shadow:pass','shadow:reveal','shadow:challenge','house:bid','house:ballot','house:vote','house:choose','chaos:activate','chaos:optin','duel:invite','duel:reject','duel:accept','duel:choose','duel:move','duel:resign','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','bluff:offer','bluff:accept','reaction:send','room:leave','results:return','state:sync'];
+const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','auctionId','socialId','socialSlotId','dealOfferId','dealId','shadowId','shadowClaimId','inviteId','duelId','throwId','moveId','ballotId','chaosWindowId','payload'];
+const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'lobby:rounds':['rounds'],'lobby:finale':['enabled'],'bounty:contribute':['targetId','amount'],'bounty:invite':['bountyId'],'deal:offer':['defenderId','amount'],'deal:choose':['choice'],'shadow:claim':['declaredTotal'],'house:bid':['amount'],'house:vote':['yes'],'house:choose':['game','coinSide'],'chaos:activate':['cardId','targetId'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'duel:move':['column','from','to','promotion'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji']};
 function canonical(value:unknown):string {if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;if(value&&typeof value==='object')return `{${Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical((value as Record<string,unknown>)[k])).join(',')}}`;return JSON.stringify(value);}
 export function validateCommand(raw:unknown):Command {
   requireRule(raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_REQUEST');
@@ -100,13 +100,19 @@ export class RoomManager {
             case 'lobby:mode':{
               requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');
               const mode=command.payload?.mode;requireRule(mode==='CLASSIC'||mode==='PARTY','INVALID_MODE');
-              if(d.mode!==mode){d.mode=mode;if(mode==='CLASSIC')d.roundLimit=3;d.lobbyId=this.e.id();for(const player of d.players)player.ready=false;addEvent(d,this.e,'mode',`${mode==='PARTY'?'Party':'Classic'} selected. Everyone must ready up again.`,now);}
+              if(d.mode!==mode){d.mode=mode;d.finaleEnabled=mode==='PARTY';if(mode==='CLASSIC')d.roundLimit=3;d.lobbyId=this.e.id();for(const player of d.players)player.ready=false;addEvent(d,this.e,'mode',`${mode==='PARTY'?'Party':'Classic'} selected. Everyone must ready up again.`,now);}
               break;
             }
             case 'lobby:rounds':{
               requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');requireRule(d.mode==='PARTY','PARTY_REQUIRED');
               const rounds=command.payload?.rounds;requireRule(rounds===3||rounds===6,'INVALID_ROUNDS');
               if(d.roundLimit!==rounds){d.roundLimit=rounds;d.lobbyId=this.e.id();for(const player of d.players)player.ready=false;addEvent(d,this.e,'mode',`${rounds}-round Party selected. Everyone must ready up again.`,now);}
+              break;
+            }
+            case 'lobby:finale':{
+              requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');requireRule(d.mode==='PARTY','PARTY_REQUIRED');
+              const enabled=command.payload?.enabled;requireRule(typeof enabled==='boolean','INVALID_FINALE');
+              if(d.finaleEnabled!==enabled){d.finaleEnabled=enabled;d.lobbyId=this.e.id();for(const player of d.players)player.ready=false;addEvent(d,this.e,'mode',`Vault finale ${enabled?'enabled':'disabled'}. Everyone must ready up again.`,now);}
               break;
             }
             case 'lobby:ready':requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(typeof command.payload?.ready==='boolean','INVALID_READY');p.ready=command.payload.ready;break;

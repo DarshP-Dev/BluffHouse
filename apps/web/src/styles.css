@@ -767,3 +767,30 @@ button { transition: background .16s, border-color .16s, transform .16s, box-sha
 .deal-history article { padding: 14px 0; border-bottom: 1px solid #ffffff15; } .deal-history article > strong { color: #dbc8a6; font-size: 13px; } .deal-history small { color: #afa894; font-size: 11px; line-height: 1.7; }
 .deal-statistics { margin-top: 16px; } .deal-statistics > div { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid #ffffff13; color: #bdb5a2; font-size: 12px; } .deal-statistics strong { color: #e1d2b4; }
 @media (max-width: 620px) { .deal-panel { padding: 16px; } .deal-panel h2 { font-size: 25px; } .deal-locks, .deal-choices { flex-wrap: wrap; } .deal-locks > span { flex: 1; min-width: 100px; } .deal-reveal { padding: 14px; } .deal-revealed-choices > div { flex-wrap: wrap; } .deal-reveal h3 { font-size: 23px; } .deal-history { padding: 16px; } }
+
+.finale-setting { display: flex; align-items: center; gap: 12px; margin-top: 24px; color: #e7d0a3; font-size: 14px; line-height: 1.5; }
+.finale-setting input { accent-color: #d7b36d; width: 18px; height: 18px; margin: 0; flex: 0 0 auto; }
+
+.shadow-panel { margin: 0 0 24px; padding: 26px; border: 1px solid #a08553; border-radius: 13px; background: radial-gradient(ellipse at top right, #41322688, transparent 60%), #1c221c; min-width: 0; }
+.shadow-panel h2 { font: 34px/1.25 var(--serif); color: #efcf97; margin: 20px 0; }
+.shadow-panel p { font-size: 13px; line-height: 1.8; color: #c7c1ae; }
+.shadow-pot { padding: 14px 0; color: #d9c69f !important; } .shadow-pot > strong { color: #f1d08d; font-size: 19px; }
+.shadow-hands { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin: 22px 0; }
+.shadow-entry { padding: 17px; border: 1px solid #6f654d; border-radius: 8px; background: #151c17; min-width: 0; }
+.shadow-entry h3 { font: 24px/1.3 var(--serif); color: #e8d2aa; margin: 0; } .shadow-entry h3 > small { font: 9px var(--sans); margin-left: 7px; color: #bbab85; }
+.shadow-entry .duel-heading > span { font-size: 10px; color: #bcb69e; text-align: right; }
+.shadow-yours { background: #283022; border-color: #9b885b; } .shadow-active { box-shadow: 0 0 0 1px #c5a76b; }
+.shadow-entry .cards { justify-content: flex-start; flex-wrap: wrap; gap: 7px; margin-top: 18px; } .shadow-entry .playing-card { width: 58px; height: 82px; flex-shrink: 0; }
+.shadow-value { color: #dfce9d !important; margin-bottom: 4px; } .shadow-entry .field-hint { font-size: 11px; }
+.shadow-actions { padding: 20px; margin: 20px 0; background: #36302099; border: 1px solid #8e784d; border-radius: 8px; }
+.shadow-actions label { display: block; margin: 18px 0; color: #dccba7; font-size: 13px; } .shadow-actions select { margin-top: 8px; display: block; width: 100%; padding: 12px; background: #1c251d; color: #ead6ac; border: 1px solid #917b52; border-radius: 5px; font: inherit; }
+.shadow-actions .dialog-actions { flex-wrap: wrap; } .shadow-actions .button { white-space: normal; justify-content: center; }
+.shadow-live-claim h3, .shadow-settlement h3 { font: 28px/1.35 var(--serif); color: #efd1a0; margin-top: 0; }
+.shadow-reveal { margin-top: 20px; color: #e3c28b; }
+.shadow-claim-history > div { display: flex; flex-direction: column; gap: 9px; padding: 16px 0; border-top: 1px solid #ffffff1c; color: #d8c7aa; font-size: 12px; line-height: 1.65; }
+.shadow-claim-history span { color: #bcb8a4; }
+.shadow-score { display: grid; gap: 9px; padding-top: 12px; border-top: 1px solid #ffffff1b; color: #ead1a1; font-size: 12px; line-height: 1.6; } .shadow-score span { color: #c5c1ac; }
+.shadow-settlement { margin-top: 20px; padding: 20px; background: #293323; border: 1px solid #938151; border-radius: 8px; }
+.shadow-settlement > div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; color: #dfd0ac; font-size: 14px; border-top: 1px solid #ffffff18; }
+.shadow-spectator { padding: 14px; border-left: 2px solid #b49d6c; background: #323025; }
+@media (max-width: 620px) { .shadow-panel { padding: 17px; } .shadow-panel h2 { font-size: 29px; } .shadow-hands { grid-template-columns: 1fr; } .shadow-entry { padding: 15px; } .shadow-actions, .shadow-settlement { padding: 15px; } .shadow-live-claim h3, .shadow-settlement h3 { font-size: 24px; } }

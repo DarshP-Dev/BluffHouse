@@ -1,9 +1,24 @@
 import {describe,expect,it} from 'vitest';
 import {RULES} from '@bluff-house/shared';
 import {assertRoom} from '../../apps/server/src/game/engine.js';
-import {fixture} from '../fixtures/core.js';
+import {fixture,shoe} from '../fixtures/core.js';
 
 describe('conserved whole-match Party ledger sequences',()=>{
+  it('funds a Shadow Draw jackpot from auction and betrayal, refunds bounty owners, and honors a successful busted claim',()=>{
+    const f=fixture({mode:'PARTY',rounds:6,finale:true,players:3});f.start();expect(f.send(f.host,'house:bid',{amount:150}).status).toBe('ok');f.advance(22000);f.advance(RULES.bettingMs+RULES.resultMs);
+    expect(f.send(f.actors[2]!,'bounty:contribute',{targetId:f.actors[1],amount:100}).status).toBe('ok');
+    expect(f.send(f.host,'deal:offer',{defenderId:f.actors[1],amount:50}).status).toBe('ok');const offer=f.view().party!.social!.dealInvites.at(-1)!;expect(f.send(f.actors[1]!,'deal:accept',undefined,{dealOfferId:offer.id}).status).toBe('ok');for(const actor of f.actors.slice(0,2))expect(f.send(actor,'deal:choose',{choice:'STEAL'}).status).toBe('ok');
+    f.manager.e.shoe=()=>shoe(['K','10','10','9','8','7','K']);
+    for(let n=0;n<60&&f.view().phase!=='SHADOW_DRAW';n++){const v=f.view();f.advance(v.deadline!-v.serverTime);assertRoom(f.room());}
+    expect(f.view()).toMatchObject({phase:'SHADOW_DRAW',round:6});expect(f.view().party!.shadow!.pot).toBe(250);expect(f.view().party!.bounties[0]!.status).toBe('refunded');expect(f.view().players.map(p=>p.balance)).toEqual([800,950,1000]);
+    expect(f.send(f.host,'shadow:draw').status).toBe('ok');for(const actor of f.actors.slice(1))expect(f.send(actor,'shadow:stand').status).toBe('ok');
+    expect(f.send(f.host,'shadow:claim',{declaredTotal:21}).status).toBe('ok');f.advance(8000);for(const actor of f.actors.slice(1))expect(f.send(actor,'shadow:pass').status).toBe('ok');
+    const settled=f.view().party!.shadow!;expect(settled).toMatchObject({status:'settled',winnerIds:[f.host],vaultThiefIds:[f.host],fallback:false});expect(settled.entrants[0]).toMatchObject({value:{total:29,bust:true},score:22});
+    expect(f.view().players.map(p=>p.balance)).toEqual([1050,950,1000]);expect(f.view().party!.vault).toBe(0);expect(f.room().dealerNet).toBe(0);expect(f.view().party!.bonusReserve).toBe(300);
+    for(let n=0;n<5&&f.view().phase!=='RESULTS';n++){const v=f.view();f.advance(v.deadline!-v.serverTime);}
+    expect(f.view().results!.winners).toEqual([f.host]);expect(f.view().party!.transfers.filter(t=>t.kind==='shadow_award').reduce((n,t)=>n+t.amount,0)).toBe(250);expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);assertRoom(f.room());
+    const final=structuredClone(f.room());expect(f.send(f.host,'shadow:claim',{declaredTotal:21}).status).toBe('rejected');expect(f.room()).toEqual(final);expect(f.send(f.host,'results:return').status).toBe('ok');expect(f.view().party).toBeNull();expect(f.view().finaleEnabled).toBe(true);
+  });
   it('conserves cooperation bonuses, betrayed pots, deal-funded Vault chips and bounty refunds across six rounds',()=>{
     const f=fixture({mode:'PARTY',rounds:6,players:3});f.start();expect(f.send(f.host,'house:bid',{amount:100}).status).toBe('ok');f.advance(22000);f.advance(RULES.bettingMs+RULES.resultMs);
     expect(f.send(f.actors[2]!,'bounty:contribute',{targetId:f.actors[1],amount:150}).status).toBe('ok');

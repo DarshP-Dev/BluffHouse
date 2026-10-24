@@ -127,6 +127,7 @@ function envelope(type: CommandType, payload?: Record<string, unknown>, context?
       throwId: room.party?.social?.duel?.throwId,
       moveId: room.party?.social?.duel?.connect4?.moveId ?? room.party?.social?.duel?.chess?.moveId,
       ballotId: room.party?.social?.ballot?.id, dealId: room.party?.social?.deal?.id,
+      shadowId: room.party?.shadow?.id, shadowClaimId: room.party?.shadow?.claim?.id,
       chaosWindowId: room.phase === 'HAND_CHAOS' ? room.party?.chaos.handWindow?.id : room.party?.chaos.potTwist?.id,
     }),
     ...context,
