@@ -840,3 +840,19 @@ button { transition: background .16s, border-color .16s, transform .16s, box-sha
 .claim-ledger summary { cursor: pointer; padding: .8rem 0; font-weight: 700; }
 .claim-record { padding: .8rem 0; border-top: 1px solid #ffffff15; overflow-wrap: anywhere; }
 .claim-record p { margin: .5rem 0 0; }
+.table-navigation { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 12px; }
+.table-navigation a { min-height: 44px; display: inline-flex; align-items: center; color: #ead29b; font-size: 12px; text-underline-offset: 4px; }
+.table-details { margin: 12px 0; border: 1px solid #6f6246; border-radius: 7px; background: #1a201b; }
+.table-details > summary { min-height: 44px; padding: 12px 16px; cursor: pointer; color: #e4d3ac; font-size: 12px; line-height: 1.6; }
+.table-details > .bounty-board, .table-details > .chaos-panel, .table-details > .party-bank { margin-bottom: 0; border: 0; }
+.current-decision { scroll-margin-top: 16px; }
+.decision-hand { display: flex; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 18px; color: #e6ce95; font-size: 13px; }
+.decision-hand .playing-card { width: 43px; height: 60px; }
+.shadow-own-hand { max-width: 550px; margin-top: 12px; }
+.chat-latest { margin-bottom: 16px; }
+select:focus-visible, textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid #efd79c; outline-offset: 4px; }
+.icon-button { min-width: 44px; min-height: 44px; }
+.text-button { min-height: 44px; }
+@media (max-width: 620px) { .bet-chip { width: 44px; height: 44px; } .bet-chips { gap: 10px; } .action-panel { margin-top: 0; } .table-navigation { margin-bottom: 6px; } .funds-details { margin-bottom: 14px; } .shadow-actions > p { font-size: 12px; line-height: 1.6; } .error-toast { bottom: 12px; } }
+:root { --sans: 'Segoe UI', Inter, Arial, sans-serif; }
+@media (max-width: 620px) { .shadow-panel h2 { margin: 10px 0; font-size: 25px; } .shadow-pot { padding: 6px 0; } .shadow-own-hand .shadow-entry { padding: 12px; } .shadow-own-hand .shadow-entry .playing-card { width: 47px; height: 66px; } .shadow-own-hand .shadow-entry .cards { margin-top: 10px; } .shadow-actions { margin-top: 12px; padding: 12px; } .shadow-actions .dialog-actions { margin-top: 12px; gap: 8px; } }

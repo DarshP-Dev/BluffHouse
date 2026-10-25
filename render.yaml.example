@@ -1,0 +1,22 @@
+# Preparation only: no service is provisioned. Deployment needs separate approval.
+# Copy to render.yaml only when approved. Automatic deployments stay disabled.
+services:
+  - type: web
+    name: bluff-house
+    runtime: node
+    plan: free
+    numInstances: 1
+    branch: main
+    autoDeployTrigger: "off"
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PUBLIC_ORIGIN
+        sync: false

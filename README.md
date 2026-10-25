@@ -38,7 +38,7 @@ npm start
 
 Open that exact `PUBLIC_ORIGIN` address on **both** devices, including the host PC. For development, set `DEV_HOST=0.0.0.0`, use `PUBLIC_ORIGIN=http://<PC-LAN-IP>:5173`, and run `npm run dev`. The development backend can remain on `HOST=127.0.0.1`; Vite forwards its requests. `DEV_PORT` and backend `PORT` are configurable and default to 5173 and 3000. A website loading alone does not prove the game connection: create/join a room, ready both guests, start, and refresh during play. Browsers with different profiles/devices should get different seats.
 
-Plain HTTP LAN browsing now uses random request IDs supported outside secure contexts. Socket.IO polling accepts a matching Referer and exact Host when HTTP browsers omit Origin/Fetch Metadata; present foreign origins still fail. The server honors the configured origin instead of forcing localhost. Cookies remain HttpOnly/SameSite=Lax, with Secure required in HTTPS production. Clipboard access may be unavailable over HTTP; select and copy the displayed room code when prompted. If the PC address changes, update the configured origin and restart. Actual second-device confirmation is still required at the Classic checkpoint.
+Plain HTTP LAN browsing uses random request IDs supported outside secure contexts. Socket.IO polling accepts a matching Referer and exact Host when HTTP browsers omit Origin/Fetch Metadata; present foreign origins still fail. The server honors the configured origin instead of forcing localhost. Cookies remain HttpOnly/SameSite=Lax, with Secure required in HTTPS production. Clipboard access may be unavailable over HTTP; select and copy the displayed room code when prompted. If the PC address changes, update the configured origin and restart. Physical second-device play/reconnect remains an additional pending verification task; the separate-profile Classic checkpoint was approved.
 
 ## Play and verification
 
@@ -48,6 +48,8 @@ Use separate browser profiles, independent browsers, or Playwright's isolated co
 npm run typecheck
 npm test
 npm run test:e2e
+# Optional slower compiled-entry smoke: real clocks, crypto cards, three rounds.
+npm run test:production
 ```
 
 Unit and integration tests use injected shoes and clocks; browser tests drive actual controls over HTTP and Socket.IO. Test fixtures are local constructors, never public production endpoints. Windows execution sandboxes may block loopback connections; that is an execution-environment limitation rather than a reason to skip multiplayer verification. The normal local PowerShell commands do not require administrator mode.
@@ -77,7 +79,7 @@ Slice 5 passed type checking, all 276 unit/integration tests, the production bui
 
 Slice 6 adds timed Connect 4 and Bullet Chess to the same funded duel flow. Type checking, all 342 unit/integration tests, the production build, and the board/Classic browser journeys pass. A combined board/RPS/Coin/Classic run passed six browser tests; the final board and Classic run passed four after clock fixes. The board rules and material-policy limits are documented below.
 
-Slice 7 adds House overthrow ballots after one completed House round. The voter list stays fixed; 75% rounded up must vote Yes within ten seconds (capped by social admission). A connected affirmative voter is selected at random, and the House gets eight seconds to choose a zero-stake Last Stand game. Challenger victory transfers the crown and future commissions; a House win or draw retains it. Selection timeout forfeits to the connected selected challenger. Each interval allows one ballot and one accepted contest. Type checking, all 379 unit/integration tests, the build, and five overthrow/Classic browser tests pass.
+Slice 7 adds House overthrow ballots after one completed House round. The voter list stays fixed; 75% rounded up must vote Yes within ten seconds (capped by social admission). A connected affirmative voter is selected at random, and the House gets eight seconds to choose a zero-stake Last Stand game. Challenger victory transfers the crown and future commissions; a House win or draw retains it. Selection timeout forfeits to the connected selected challenger. One ballot remains the interval-wide limit; three-round Party allows one contest, while the later six-round extension can fit two sequential contests. Type checking, all 379 unit/integration tests, the build, and five overthrow/Classic browser tests pass.
 
 Slice 8 adds earned Chaos inventory: Double Down Chaos, Triple Down Chaos, Pot Twist, and Emergency Fund. Non-final rounds award cards to the bottom two positions including ties, with a two-card limit. Multipliers fund actual wagers up to 750; Pot Twist offers a voluntary five-second funded doubling window. Emergency Fund transfers up to 100 from the finite reserve before wagering, once per player per match. One activation or opt-in is allowed per round. Replacing an affected wager removes its multiplier while the card stays consumed. Rules, funding and unavailable-action reasons appear in the game. Type checking, all 413 unit/integration tests, the build, and four Chaos/Classic browser tests pass.
 
@@ -100,6 +102,8 @@ Party also offers host-selectable ordinary Double Down and additional claims. Or
 Room voice is unavailable while physical-device audio and network connectivity remain unverified. The application never requests a microphone or starts audio signaling. The conditional evaluation and its exact test scope are recorded in [the voice feasibility report](devpost/voice-feasibility.md); local fake-audio transport cannot establish real-device intelligibility or general internet reachability. Text chat and reactions remain available.
 
 Rooms and guest credentials live in server memory. Restarting the backend loses them; the browser must show an unavailable-match recovery path, never silently insert new chips into a lost match. This is a local proof of concept, not durable account storage. The learner authorized normal fast-forward pushes of verified completed slices after inspecting their exact commits and private-file exclusions. Deployment and purchases require separate authorization. Keep the private learner profile and local credentials out of Git.
+
+Current behavior and limits are summarized in [feature status](docs/feature-status.md), [architecture](docs/architecture.md) and [the local build report](devpost/build-report.md). The report distinguishes verified implementation from pending hands-on, LAN and hosted checks. [render.yaml.example](render.yaml.example) prepares a single-service configuration with auto-deploy disabled; no Render service has been created. Any deployment still requires separate authorization.
 
 ## Board duel rules
 
