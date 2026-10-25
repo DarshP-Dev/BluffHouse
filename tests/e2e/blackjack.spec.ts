@@ -3,7 +3,7 @@ import {test,expect,readyAndStart} from '../fixtures/browser.js';
 test('four browsers bet, edit, withdraw and settle the same authoritative round',async({table})=>{
   const pages=await Promise.all([table.newPlayer(),table.newPlayer(),table.newPlayer(),table.newPlayer()]);
   const code=await table.host(pages[0]);for(let i=1;i<4;i++)await table.join(pages[i],code,['','Blair','Casey','Drew'][i]);await readyAndStart(pages);
-  await pages[0].getByRole('button',{name:'Bet 150 chips',exact:true}).click();await pages[0].getByRole('button',{name:'Place Bet'}).click();await expect(pages[0].getByRole('button',{name:'Update Bet'})).toBeVisible();
+  await pages[0].getByRole('button',{name:'Clear Pot',exact:true}).click();await pages[0].getByRole('button',{name:'Bet 100 chips',exact:true}).click();await pages[0].getByRole('button',{name:'Bet 50 chips',exact:true}).click();await pages[0].getByRole('button',{name:'Place Bet'}).click();await expect(pages[0].getByRole('button',{name:'Update Bet'})).toBeVisible();
   await pages[0].getByRole('button',{name:'Withdraw'}).click();await expect(pages[0].getByRole('button',{name:'Place Bet'})).toBeVisible();await pages[0].getByRole('button',{name:'Bet 100 chips',exact:true}).click();
   for(const p of pages)await p.getByRole('button',{name:'Place Bet'}).click();
   await expect.poll(()=>table.view(code).players.map(p=>p.reserved)).toEqual([100,100,100,100]);table.advance(21000);

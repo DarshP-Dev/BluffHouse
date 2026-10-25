@@ -97,8 +97,8 @@ function connectSocket(): Promise<void> {
     pendingChatRequestId = null;
     publish({ status: 'reconnecting', pending: null, chatPending: false });
   });
-  next.on('room:left', () => {
-    if (socket === next) { pendingChatRequestId = null; publish({ room: null, reactions: [], chatPending: false, chatError: null }); }
+  next.on('room:left', (event?: { message?: string }) => {
+    if (socket === next) { pendingRequestId = null; pendingChatRequestId = null; publish({ room: null, pending: null, reactions: [], chatPending: false, chatError: null, error: typeof event?.message === 'string' ? event.message : null }); }
   });
   next.on('connect', () => {
     if (socket !== next) return;

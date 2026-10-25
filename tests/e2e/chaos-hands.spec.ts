@@ -2,6 +2,12 @@ import { test, expect, scriptedShoe, type TableFixture } from '../fixtures/brows
 import type { Page } from '@playwright/test';
 import type { Rank, RoomView } from '@bluff-house/shared';
 
+async function openCard(page: Page, name: string) {
+  const card = page.getByLabel(`${name} card`, { exact: true }).first();
+  if (await card.getAttribute('open') === null) await card.locator(':scope > summary').click();
+  return card;
+}
+
 async function earnedHandCards(table: TableFixture, grants = [4, 5, 6, 6]) {
   const pages = await Promise.all(Array.from({ length: 4 }, () => table.newPlayer()));
   const code = await table.host(pages[0]);
@@ -26,7 +32,12 @@ async function earnedHandCards(table: TableFixture, grants = [4, 5, 6, 6]) {
 async function dealHands(table: TableFixture, pages: Page[], ranks: Rank[] = ['5', '6', '7', '8', '10', '5', '6', '7', '8', '7', '2', '3', '4']) {
   table.server.manager.e.shoe = () => scriptedShoe(ranks);
   for (let i = 0; i < pages.length; i++) {
-    await pages[i].getByRole('button', { name: `Bet ${100 + i * 50} chips`, exact: true }).click();
+    await pages[i].getByRole('button', { name: 'Clear Pot', exact: true }).click();
+    for (let remaining = 100 + i * 50; remaining > 0;) {
+      const chip = remaining >= 100 ? 100 : 50;
+      await pages[i].getByRole('button', { name: `Bet ${chip} chips`, exact: true }).click();
+      remaining -= chip;
+    }
     await pages[i].getByRole('button', { name: 'Place Bet', exact: false }).click();
   }
   table.advance(21000);
@@ -44,6 +55,7 @@ test('earned Hand Swap moves actual hands, preserves stakes and Second Chance re
   const { pages, code } = await earnedHandCards(table);
   const errors: string[] = [];
   for (const page of pages) page.on('pageerror', error => errors.push(error.message));
+  await openCard(pages[0], 'Hand Swap');
   await expect(pages[0].getByLabel('Hand Swap card')).toContainText('five-second');
   await expect(pages[0].getByRole('button', { name: 'Play Hand Swap', exact: true })).toBeDisabled();
   await dealHands(table, pages);
@@ -52,6 +64,7 @@ test('earned Hand Swap moves actual hands, preserves stakes and Second Chance re
   const stakes = before.players.map(player => ({ balance: player.balance, wager: player.wager, committed: player.committed }));
   await pages[0].reload();
   await expect(pages[0].getByRole('heading', { name: 'Change the hands', exact: true })).toBeVisible();
+  await openCard(pages[0], 'Hand Swap');
   const targets = pages[0].getByLabel('Hand to swap with');
   await expect(targets.locator('option')).toHaveText(['Blair', 'Casey', 'Drew']);
   await targets.selectOption(before.players[1].id);
@@ -61,6 +74,7 @@ test('earned Hand Swap moves actual hands, preserves stakes and Second Chance re
   await pages[0].getByRole('button', { name: 'Play Hand Swap', exact: true }).click();
   await expect.poll(() => hands(table.view(code))).toEqual([beforeHands[1], beforeHands[0], beforeHands[2], beforeHands[3]]);
   expect(table.view(code).players.map(player => ({ balance: player.balance, wager: player.wager, committed: player.committed }))).toEqual(stakes);
+  await openCard(pages[1], 'Table Turn');
   await expect(pages[1].getByRole('button', { name: 'Play Table Turn', exact: true })).toBeDisabled();
   expect(table.view(code).party!.chaos.inventories[0].cards).toEqual([]);
   if (table.view(code).phase === 'HAND_CHAOS') table.advance(5000);
@@ -68,11 +82,13 @@ test('earned Hand Swap moves actual hands, preserves stakes and Second Chance re
   await expectPublicHands(pages, table.view(code));
   await pages[0].getByRole('button', { name: 'Stand', exact: false }).click();
   await pages[1].getByRole('button', { name: 'Stand', exact: false }).click();
+  await openCard(pages[2], 'Second Chance');
   await expect(pages[2].getByRole('button', { name: 'Play Second Chance', exact: true })).toBeDisabled();
   await pages[2].getByRole('button', { name: 'Hit', exact: false }).click();
   const hit = table.view(code).players[2].hand.at(-1)!;
   expect(hit.rank).toBe('2');
   await pages[2].reload();
+  await openCard(pages[2], 'Second Chance');
   await expect(pages[2].getByRole('button', { name: 'Play Second Chance', exact: true })).toBeEnabled();
   await pages[2].getByRole('button', { name: 'Play Second Chance', exact: true }).click();
   await expect.poll(() => table.view(code).players[2].hand.at(-1)?.rank).toBe('3');
@@ -81,7 +97,7 @@ test('earned Hand Swap moves actual hands, preserves stakes and Second Chance re
   expect(table.view(code).players.some(player => player.hand.some(card => card.id === hit.id))).toBe(false);
   for (const page of pages) await expect(page.getByLabel('Consumed redraw cards')).toBeVisible();
   expect(table.view(code).party!.chaos.inventories[2].cards).toEqual([]);
-  await expect(pages[2].locator('.chaos-allowance')).toContainText('Round activation used');
+  await expect(pages[2].locator('.chaos-allowance')).toContainText('Used this round');
   await expectPublicHands(pages, table.view(code));
   await pages[2].getByRole('heading', { name: 'Player turns', exact: true }).click();
   await pages[2].screenshot({ path: 'test-results/chaos-second-chance.png', fullPage: true });
@@ -99,11 +115,13 @@ test('earned Table Turn rotates eligible hands one seat left and protects a natu
   await dealHands(table, pages, ['5', '6', 'A', '8', '10', '5', '6', 'K', '8', '7', '2', '3']);
   const before = table.view(code), original = hands(before);
   expect(before.players[2].value?.natural).toBe(true);
+  await openCard(pages[0], 'Table Turn');
   await pages[0].getByRole('button', { name: 'Play Table Turn', exact: true }).click();
   await expect.poll(() => hands(table.view(code))).toEqual([original[1], original[3], original[2], original[0]]);
   expect(table.view(code).players.map(player => player.wager)).toEqual([100, 150, 200, 250]);
   expect(table.view(code).players[2].value?.natural).toBe(true);
   expect(table.view(code).dealer).toEqual(before.dealer);
+  await openCard(pages[1], 'Hand Swap');
   await expect(pages[1].getByRole('button', { name: 'Play Hand Swap', exact: true })).toBeDisabled();
   if (table.view(code).phase === 'HAND_CHAOS') table.advance(5000);
   await expectPublicHands(pages, table.view(code));

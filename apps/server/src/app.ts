@@ -59,6 +59,7 @@ export function createApp(options:AppOptions={}){
   const sendState=(guest:Guest)=>{const snapshot=manager.snapshot(guest.id);if(snapshot)guest.socket?.emit('room:state',snapshot);};
   manager.onChange=room=>{for(const p of room.players){const guest=guests.get(p.id);if(guest&&!p.departed&&p.connected&&manager.membership.get(p.id)===room.instanceId)sendState(guest);}};
   manager.onReaction=(room,event)=>{for(const p of room.players)if(p.connected&&!p.departed&&manager.membership.get(p.id)===room.instanceId)guests.get(p.id)?.socket?.emit('room:reaction',{roomInstanceId:room.instanceId,event});};
+  manager.onKick=playerId=>{const guest=guests.get(playerId);if(guest){guest.hadRoom=false;guest.socket?.emit('room:left',{message:'The host removed you from the lobby.'});}};
   manager.onClose=room=>{for(const p of room.players)if(!p.departed)guests.get(p.id)?.socket?.emit('recovery:error',{message:'This inactive table has closed. Return to the menu to start again.'});};
   io.on('connection',socket=>{
     const guest=socket.data.guest as Guest,old=guest.socket,generation=++guest.generation;guest.socket=socket;guest.lastSeen=now();

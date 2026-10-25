@@ -10,11 +10,11 @@ import {cancelPlayerInvites} from './game/duels.js';
 import {chatCommand} from './game/chat.js';
 import {profileCommand} from './game/profiles.js';
 import {updateAchievements} from './game/achievements.js';
-import {configureSettings} from './game/settings.js';
+import {configureSettings,validRounds} from './game/settings.js';
 
-const TYPES:CommandType[]=['room:create','room:quickplay','room:join','lobby:ready','lobby:settings','lobby:mode','lobby:rounds','lobby:finale','bounty:contribute','bounty:invite','deal:offer','deal:accept','deal:reject','deal:choose','shadow:draw','shadow:stand','shadow:claim','shadow:pass','shadow:reveal','shadow:challenge','house:bid','house:ballot','house:vote','house:choose','chaos:activate','chaos:optin','duel:invite','duel:reject','duel:accept','duel:choose','duel:move','duel:resign','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','turn:double','bluff:offer','bluff:accept','reaction:send','chat:send','profile:update','room:leave','results:return','state:sync'];
+const TYPES:CommandType[]=['room:create','room:quickplay','room:join','lobby:ready','lobby:kick','lobby:settings','lobby:mode','lobby:rounds','lobby:finale','bounty:contribute','bounty:invite','deal:offer','deal:accept','deal:reject','deal:choose','shadow:draw','shadow:stand','shadow:claim','shadow:pass','shadow:reveal','shadow:challenge','house:bid','house:ballot','house:vote','house:choose','chaos:activate','chaos:optin','duel:invite','duel:reject','duel:accept','duel:choose','duel:move','duel:resign','match:start','bet:submit','bet:withdraw','turn:hit','turn:stand','turn:double','bluff:offer','bluff:accept','reaction:send','chat:send','profile:update','room:leave','results:return','state:sync'];
 const fields=['requestId','type','roomInstanceId','lobbyId','matchId','roundId','decisionId','bettingId','offerId','auctionId','socialId','socialSlotId','dealOfferId','dealId','shadowId','shadowClaimId','inviteId','duelId','throwId','moveId','ballotId','chaosWindowId','payload'];
-const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username','visibility'],'room:quickplay':['username','preset'],'lobby:settings':['settings','rounds','finale','visibility'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'lobby:rounds':['rounds'],'lobby:finale':['enabled'],'bounty:contribute':['targetId','amount'],'bounty:invite':['bountyId'],'deal:offer':['defenderId','amount'],'deal:choose':['choice'],'shadow:claim':['declaredTotal'],'house:bid':['amount'],'house:vote':['yes'],'house:choose':['game','coinSide'],'chaos:activate':['cardId','targetId'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'duel:move':['column','from','to','promotion'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji'],'chat:send':['text'],'profile:update':['initials','color']};
+const payloadFields:Partial<Record<CommandType,string[]>>={'room:create':['username','visibility'],'room:quickplay':['username','preset'],'lobby:settings':['settings','rounds','finale','visibility','startingChips','bettingSeconds','turnSeconds'],'lobby:kick':['playerId'],'room:join':['username','roomCode'],'lobby:ready':['ready'],'lobby:mode':['mode'],'lobby:rounds':['rounds'],'lobby:finale':['enabled'],'bounty:contribute':['targetId','amount'],'bounty:invite':['bountyId'],'deal:offer':['defenderId','amount'],'deal:choose':['choice'],'shadow:claim':['declaredTotal'],'house:bid':['amount'],'house:vote':['yes'],'house:choose':['game','coinSide'],'chaos:activate':['cardId','targetId'],'duel:invite':['defenderId','amount'],'duel:accept':['game','coinSide'],'duel:choose':['choice'],'duel:move':['column','from','to','promotion'],'bet:submit':['amount'],'bluff:offer':['amount','claimType'],'reaction:send':['emoji'],'chat:send':['text'],'profile:update':['initials','color']};
 function canonical(value:unknown):string {if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;if(value&&typeof value==='object')return `{${Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical((value as Record<string,unknown>)[k])).join(',')}}`;return JSON.stringify(value);}
 export function validateCommand(raw:unknown):Command {
   requireRule(raw&&typeof raw==='object'&&!Array.isArray(raw),'INVALID_REQUEST');
@@ -35,6 +35,7 @@ export class RoomManager {
   onChange:(room:Room)=>void=()=>{};
   onReaction:(room:Room,event:TableEvent)=>void=()=>{};
   onClose:(room:Room)=>void=()=>{};
+  onKick:(playerId:string)=>void=()=>{};
   constructor(readonly instanceId:string,options:Partial<EngineOptions>={},readonly maxRooms=20){this.e={now:options.now??(()=>Date.now()),id:options.id??randomUUID,shoe:options.shoe??makeShoe,randomIndex:options.randomIndex??(length=>randomInt(length))};}
   roomFor(id:string){return this.rooms.get(this.membership.get(id)??'');}
   snapshot(id:string):RoomView|null{const r=this.roomFor(id);return r?project(r,id,this.instanceId,this.e.now()):null;}
@@ -94,14 +95,14 @@ export class RoomManager {
         // Existing membership always wins, including private or active tables.
         if(!r){
           const mode=preset==='CLASSIC'?'CLASSIC':'PARTY',rounds=preset==='PARTY_6'?6:3,settings=defaultSettings(mode);
-          const target=[...this.rooms.values()].find(room=>room.visibility==='PUBLIC'&&room.phase==='LOBBY'&&room.mode===mode&&room.roundLimit===rounds&&room.finaleEnabled===(mode==='PARTY')&&room.players.length<room.settings.maxPlayers&&room.players.some(player=>player.id===room.hostId&&player.connected&&!player.departed)&&Object.entries(settings).every(([key,value])=>room.settings[key as keyof typeof settings]===value));
+          const target=[...this.rooms.values()].find(room=>room.visibility==='PUBLIC'&&room.phase==='LOBBY'&&room.mode===mode&&room.roundLimit===rounds&&room.finaleEnabled===(mode==='PARTY')&&room.startingChips===1000&&room.bettingSeconds===20&&room.turnSeconds===20&&room.players.length<room.settings.maxPlayers&&room.players.some(player=>player.id===room.hostId&&player.connected&&!player.departed)&&Object.entries(settings).every(([key,value])=>room.settings[key as keyof typeof settings]===value));
           if(target){
             let unique=name;
             for(let suffix=2;target.players.some(player=>player.name.toLowerCase()===unique.toLowerCase());suffix++){
               const tail=`-${suffix}`;unique=Array.from(name).slice(0,16-tail.length).join('')+tail;
             }
             const slot=Array.from({length:6},(_,n)=>n).find(n=>!target.players.some(player=>player.seat===n))!;
-            r=this.update(target,d=>{const joined=makePlayer(id,unique,slot,this.e.now());this.hydratePlayer(joined);d.players.push(joined);d.players.sort((a,b)=>a.seat-b.seat);d.emptySince=null;addEvent(d,this.e,'join',`${unique} joined through Quick Play.`,this.e.now(),id);});
+            r=this.update(target,d=>{const joined=makePlayer(id,unique,slot,this.e.now());this.hydratePlayer(joined);joined.account=account(d.startingChips);joined.lobbyWins=d.lobbyWinsByPlayer[id]??0;d.players.push(joined);d.players.sort((a,b)=>a.seat-b.seat);d.emptySince=null;addEvent(d,this.e,'join',`${unique} joined through Quick Play.`,this.e.now(),id);});
           }else{
             requireRule(this.rooms.size<this.maxRooms,'ROOM_LIMIT','All tables are occupied. Try again later.');
             r=createRoom(this.code(),makePlayer(id,name,0,this.e.now()),this.e);r.mode=mode;r.roundLimit=rounds;r.finaleEnabled=mode==='PARTY';r.settings=settings;r.visibility='PUBLIC';
@@ -123,7 +124,7 @@ export class RoomManager {
         const target=this.rooms.get(this.codes.get(code.trim().toUpperCase())??'');requireRule(target,'ROOM_MISSING','That room is unavailable.');requireRule(target.phase==='LOBBY','ROOM_IN_PROGRESS','This match has already started.');requireRule(target.players.length<target.settings.maxPlayers,'ROOM_FULL','This room is full.');
         requireRule(!target.players.some(p=>p.name.toLowerCase()===name.toLowerCase()),'NAME_TAKEN','That name is already at the table.');
         const slot=Array.from({length:6},(_,n)=>n).find(n=>!target.players.some(p=>p.seat===n))!;
-        r=this.update(target,d=>{const joined=makePlayer(id,name,slot,this.e.now());this.hydratePlayer(joined);d.players.push(joined);d.players.sort((a,b)=>a.seat-b.seat);d.emptySince=null;if(!d.hostId)this.transferHost(d,this.e.now());addEvent(d,this.e,'join',`${name} joined the table.`,this.e.now(),id);});
+        r=this.update(target,d=>{const joined=makePlayer(id,name,slot,this.e.now());this.hydratePlayer(joined);joined.account=account(d.startingChips);joined.lobbyWins=d.lobbyWinsByPlayer[id]??0;d.players.push(joined);d.players.sort((a,b)=>a.seat-b.seat);d.emptySince=null;if(!d.hostId)this.transferHost(d,this.e.now());addEvent(d,this.e,'join',`${name} joined the table.`,this.e.now(),id);});
         this.membership.set(id,target.instanceId);targetId=r.instanceId;
       }else {
         requireRule(r,'NO_MEMBERSHIP','This room is no longer available.');requireRule(c.roomInstanceId===r.instanceId,'STALE_ROOM');targetId=r.instanceId;
@@ -149,6 +150,12 @@ export class RoomManager {
             case 'chat:send':chatCommand(d,p,command,this.e,now);break;
             case 'profile:update':profileCommand(d,p,command);break;
             case 'lobby:settings':configureSettings(d,p,command,this.e,now);break;
+            case 'lobby:kick':{
+              requireRule(d.phase==='LOBBY','SETTINGS_LOCKED','Players can be removed only in the lobby.');requireRule(d.hostId===id,'NOT_HOST');
+              const target=d.players.find(player=>player.id===command.payload?.playerId);requireRule(target&&target.id!==id,'INVALID_KICK_TARGET','Choose another player in this lobby.');
+              d.players=d.players.filter(player=>player.id!==target.id);d.lobbyId=this.e.id();for(const player of d.players)player.ready=false;
+              addEvent(d,this.e,'kick',`${target.name} was removed by the host. Everyone must ready up again.`,now,target.id);break;
+            }
             case 'lobby:mode':{
               requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');
               const mode=command.payload?.mode;requireRule(mode==='CLASSIC'||mode==='PARTY','INVALID_MODE');
@@ -156,8 +163,8 @@ export class RoomManager {
               break;
             }
             case 'lobby:rounds':{
-              requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');requireRule(d.mode==='PARTY','PARTY_REQUIRED');
-              const rounds=command.payload?.rounds;requireRule(rounds===3||rounds===6,'INVALID_ROUNDS');
+              requireRule(d.phase==='LOBBY','PHASE_LOCKED');requireRule(d.hostId===id,'NOT_HOST');
+              const rounds=command.payload?.rounds;requireRule(validRounds(rounds),'INVALID_ROUNDS');
               if(d.roundLimit!==rounds){d.roundLimit=rounds;d.lobbyId=this.e.id();for(const player of d.players)player.ready=false;addEvent(d,this.e,'mode',`${rounds}-round Party selected. Everyone must ready up again.`,now);}
               break;
             }
@@ -180,7 +187,7 @@ export class RoomManager {
               d.discarded=[];
               // Archive economic records outside the reset gameplay state.
               d.phase='LOBBY';d.lobbyId=this.e.id();d.matchId=undefined;d.roundId=undefined;d.round=0;d.initialChips=0;d.dealerNet=0;d.shoe=[];d.cursor=0;d.dealer=[];d.dealerRevealed=false;d.deadline=null;d.decisionId=undefined;d.bettingId=undefined;d.bluff=null;d.biggestBluff=null;d.bluffOutcomes=[];d.pendingClaims=[];d.results=null;d.resultsSince=null;d.recoveryDeadline=null;d.terminationConfirmed=false;
-              d.players=d.players.filter(p=>!p.departed);for(const player of d.players){player.account=account();player.hand=[];player.wager=0;player.wagerId=undefined;player.status='waiting';player.ready=false;player.participating=false;player.bluffUsed=false;player.doubled=false;player.chaosAffected=false;player.bluffWins=0;player.bluffLosses=0;if(!player.connected)player.disconnectedAt=now;}
+              d.players=d.players.filter(p=>!p.departed);for(const player of d.players){player.account=account(d.startingChips);player.hand=[];player.wager=0;player.wagerId=undefined;player.status='waiting';player.ready=false;player.participating=false;player.bluffUsed=false;player.doubled=false;player.chaosAffected=false;player.bluffWins=0;player.bluffLosses=0;if(!player.connected)player.disconnectedAt=now;}
               d.party=null;d.roundPayouts=[];
               d.hostDeadline=null;this.presenceRules(d,now);addEvent(d,this.e,'lobby','Back at the table. Ready up for a fresh match.',now);break;
             }
@@ -188,6 +195,7 @@ export class RoomManager {
           }
         });
         if(c.type==='room:leave'){this.membership.delete(id);this.lastReaction.delete(id);}
+        if(c.type==='lobby:kick'){const targetId=c.payload!.playerId as string;this.membership.delete(targetId);this.lastReaction.delete(targetId);this.onKick(targetId);}
         if(c.type==='results:return')this.settlementArchive.set(was.instanceId,[...(this.settlementArchive.get(was.instanceId)??[]),...was.players.map(p=>({...p.account.settlements}))]);
       }
       const ack:Ack={requestId:c.requestId,status:'ok',code:'OK',appliedRevision:r.revision,currentRevision:r.revision};

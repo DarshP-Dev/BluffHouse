@@ -23,7 +23,7 @@ test('Quick Play matches public default lobbies, safely names collisions and exc
   expect(table.view(code).players.map(player => player.name)).toEqual(['Alex', 'Alex-2']);
   expect(table.view(code)).toMatchObject({ visibility: 'PUBLIC', mode: 'CLASSIC', roundLimit: 3, finaleEnabled: false, settings: defaultSettings('CLASSIC') });
   await expect(pages[0].locator('.room-label')).toContainText('PUBLIC ROOM');
-  await expect(pages[0].getByRole('combobox', { name: 'Player capacity', exact: true })).toBeDisabled();
+  await expect(pages[0].getByRole('combobox', { name: 'Player capacity', exact: true })).toBeEnabled();
   for (let i = 2; i < 6; i++) {
     pages.push(await table.newPlayer());
     expect(await quick(table, pages[i], `Guest${i + 1}`)).toBe(code);

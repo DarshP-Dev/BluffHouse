@@ -1,0 +1,23 @@
+.bet-builder { width:100%; min-width:0; }
+.personal-pot-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; color:#ffdf79; }
+.personal-pot-heading label { font-weight:750; font-size:17px; }
+.personal-pot-heading output { font-size:30px; line-height:1.2; font-weight:850; color:#fff1b4; font-variant-numeric:tabular-nums; }
+.personal-pot-heading output small { font-size:12px; font-weight:500; color:#c1d0ec; }
+.personal-pot { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:12px; min-height:100px; margin:12px 0 8px; padding:12px 10px; border:2px solid #ac8340; border-radius:50% / 20%; background:radial-gradient(ellipse,#064638,#032e27); box-shadow:inset 0 0 20px #001c19,0 3px 0 #130d0b; }
+.pot-stack { border:0; background:transparent; color:#e8efff; padding:5px; display:grid; justify-items:center; min-width:64px; min-height:78px; }
+.stack-chip { display:grid; place-items:center; width:48px; height:48px; border:5px dashed #eee3d1; border-radius:50%; background:var(--chip-color,#a81b38); color:#fff; box-shadow:0 3px 0 #1a1015,0 6px 0 var(--chip-color,#a81b38),0 8px 0 #160f18,inset 0 0 0 2px #fffd; font-weight:800; }
+.pot-stack strong { font-size:11px; margin-top:10px; }.pot-stack small { color:#b4d9cb; font-size:9px; }
+.pot-stack:hover:not(:disabled) .stack-chip { transform:translateY(-3px); }
+.empty-pot { color:#a6c7bd; font-size:13px; }.pot-remainder { background:#0c203c; color:#d7e7ff; border:1px solid #6782b2; border-radius:10px; padding:10px; min-height:44px; }.pot-remainder small { display:block; font-size:9px; }
+.pot-edit-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+.pot-edit-actions button,.bet-shortcuts button { min-height:44px; min-width:65px; border:1px solid #57709f; border-radius:8px; background:linear-gradient(#20365e,#0b1730); color:#e1ecff; font-weight:650; padding:7px 12px; }
+.pot-edit-actions span { margin-left:auto; font-size:11px; color:#c1cfe9; }
+.chip-denominations { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin:10px 0 16px; }
+.chip-denominations .bet-chip { position:relative; width:52px; height:52px; border:5px dashed #f6e6d5; background:var(--chip-color); color:white; box-shadow:inset 0 0 0 2px #fff7,0 4px 0 #050a13; font-size:12px; padding:0; }
+.chip-denominations .chip-in-pot { outline:2px solid #ffe581; outline-offset:3px; }
+.chip-add { position:absolute; right:-6px; bottom:-7px; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; background:#061123; border:1px solid #96beed; font-size:15px; }
+.chip-value-10 { --chip-color:#b7253d; }.chip-value-20 { --chip-color:#087955; }.chip-value-50 { --chip-color:#1861a2; }.chip-value-100 { --chip-color:#282b37; }.chip-value-500 { --chip-color:#7d1cce; }.chip-value-1000 { --chip-color:#c97808; }
+.bet-shortcuts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0 0 12px; }.bet-shortcuts button:last-child { border-color:#e8be5e; color:#ffdf87; }
+.bet-submit-actions { display:flex; align-items:center; gap:15px; }.bet-submit-actions>.button { flex:1; min-width:0; }.bet-builder-error { color:#ff9cae; font-size:12px; margin:8px 0; }
+@media(max-width:620px) { .chip-denominations { gap:10px; }.chip-denominations .bet-chip { width:44px; height:44px; font-size:11px; }.personal-pot-heading output { font-size:26px; }.personal-pot { min-height:91px; gap:7px; }.pot-stack { min-width:52px; }.pot-edit-actions span { flex-basis:100%; margin:2px 0; }.bet-submit-actions>.button { min-height:51px; } }
+@media(prefers-reduced-motion:reduce) { .pot-stack:hover:not(:disabled) .stack-chip { transform:none; } }

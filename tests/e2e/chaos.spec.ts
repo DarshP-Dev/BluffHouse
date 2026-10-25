@@ -1,6 +1,22 @@
 import { test, expect, scriptedShoe, type TableFixture } from '../fixtures/browser.js';
 import type { Page } from '@playwright/test';
 
+async function openCard(page: Page, name: string) {
+  const card = page.getByLabel(`${name} card`, { exact: true }).first();
+  if (await card.getAttribute('open') === null) await card.locator(':scope > summary').click();
+  return card;
+}
+
+async function wager(page: Page, amount: number) {
+  await page.getByRole('button', { name: 'Clear Pot', exact: true }).click();
+  for (let remaining = amount; remaining > 0;) {
+    const chip = remaining >= 100 ? 100 : 50;
+    await page.getByRole('button', { name: `Bet ${chip} chips`, exact: true }).click();
+    remaining -= chip;
+  }
+  await page.getByRole('button', { name: 'Place Bet', exact: false }).click();
+}
+
 async function party(table: TableFixture, count = 4) {
   const pages = await Promise.all(Array.from({ length: count }, () => table.newPlayer()));
   const code = await table.host(pages[0]);
@@ -32,20 +48,24 @@ test('earned Chaos cards fund double and triple naturals, optional Pot Twist and
   table.advance(20000);
   await expect(pages[0].getByRole('heading', { name: 'Round settled', exact: true })).toBeVisible();
   expect(table.view(code).party!.chaos.inventories.map(inventory => inventory.cards[0].kind)).toEqual(['DOUBLE_DOWN', 'TRIPLE_DOWN', 'POT_TWIST', 'EMERGENCY_FUND']);
+  await openCard(pages[0], 'Double Down Chaos');
   await expect(pages[0].getByRole('button', { name: 'Play Double Down Chaos', exact: true })).toBeDisabled();
   await expect(pages[0].getByLabel('Double Down Chaos card')).toContainText('Play this card during betting.');
   await nextRound(table, pages);
   await expect(pages[0].getByLabel('Double Down Chaos card')).toContainText('Submit a wager');
   for (const page of pages) await page.getByRole('button', { name: 'Place Bet' }).click();
+  await openCard(pages[0], 'Double Down Chaos');
   await pages[0].getByRole('button', { name: 'Play Double Down Chaos', exact: true }).click();
+  await openCard(pages[1], 'Triple Down Chaos');
   await pages[1].getByRole('button', { name: 'Play Triple Down Chaos', exact: true }).click();
+  await openCard(pages[2], 'Pot Twist');
   await pages[2].getByRole('button', { name: 'Play Pot Twist', exact: true }).click();
   await expect(pages[0].locator('.chaos-multiplier')).toContainText('200 chips');
   await expect(pages[1].locator('.chaos-multiplier')).toContainText('300 chips');
   await expect(pages[3].getByLabel('Emergency Fund card')).toContainText('Withdraw your wager');
   await pages[1].reload();
   await expect(pages[1].locator('.chaos-multiplier')).toContainText('100 × 3');
-  await expect(pages[1].locator('.chaos-allowance')).toContainText('Round activation used');
+  await expect(pages[1].locator('.chaos-allowance')).toContainText('Used this round');
   await pages[3].setViewportSize({ width: 390, height: 844 });
   expect(await pages[3].evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await pages[3].screenshot({ path: 'test-results/chaos-inventory-mobile.png', fullPage: true });
@@ -83,8 +103,7 @@ test('a genuinely earned Emergency Fund spends the finite reserve once and remai
   for (const page of pages) await page.getByRole('button', { name: 'Pass Auction', exact: true }).click();
   table.advance(22000);
   for (const page of pages) {
-    await page.getByRole('button', { name: 'Bet 250 chips', exact: true }).click();
-    await page.getByRole('button', { name: 'Place Bet' }).click();
+    await wager(page, 250);
   }
   table.advance(26000);
   for (const page of pages) await page.getByRole('button', { name: 'Stand', exact: false }).click();
@@ -93,26 +112,30 @@ test('a genuinely earned Emergency Fund spends the finite reserve once and remai
   expect(table.view(code).players.map(player => player.balance)).toEqual([750, 750]);
   expect(table.view(code).party!.chaos.inventories.every(inventory => inventory.cards[0].kind === 'EMERGENCY_FUND')).toBe(true);
   await nextRound(table, pages);
-  await expect(pages[0].getByLabel('Emergency Fund card')).toContainText('Current funded award: 100 chips');
+  await openCard(pages[0], 'Emergency Fund');
+  await expect(pages[0].getByLabel('Emergency Fund card')).toContainText('Funded award: 100 chips');
   await pages[0].getByRole('button', { name: 'Play Emergency Fund', exact: true }).click();
   expect(table.view(code).players[0].balance).toBe(850);
   expect(table.view(code).party!.bonusReserve).toBe(100);
   await pages[0].getByRole('button', { name: 'Place Bet' }).click();
   await pages[0].getByRole('button', { name: 'Withdraw', exact: true }).click();
   await pages[0].reload();
-  await expect(pages[0].locator('.chaos-allowance')).toContainText('Round activation used');
+  await expect(pages[0].locator('.chaos-allowance')).toContainText('Used this round');
   expect(table.view(code).players[0].balance).toBe(850);
   table.advance(20000);
   await expect(pages[0].getByRole('heading', { name: 'Round settled', exact: true })).toBeVisible();
   await nextRound(table, pages);
+  await openCard(pages[0], 'Emergency Fund');
   await expect(pages[0].getByRole('button', { name: 'Play Emergency Fund', exact: true })).toBeDisabled();
   await expect(pages[0].getByLabel('Emergency Fund card')).toContainText('once per player per match');
-  await pages[1].getByRole('button', { name: 'Play Emergency Fund', exact: true }).first().click();
+  const emergency = await openCard(pages[1], 'Emergency Fund');
+  await emergency.getByRole('button', { name: 'Play Emergency Fund', exact: true }).click();
   expect(table.view(code).party!.bonusReserve).toBe(0);
   expect(table.view(code).players.map(player => player.balance)).toEqual([850, 850]);
   await pages[1].reload();
+  await openCard(pages[1], 'Emergency Fund');
   await expect(pages[1].getByRole('button', { name: 'Play Emergency Fund', exact: true })).toBeDisabled();
-  await expect(pages[1].getByLabel('Party funds')).toContainText('0 / 200');
+  await expect(pages[1].getByLabel('Party funds').locator('span').filter({ hasText: 'Bonus reserve' }).locator('strong')).toHaveText('0');
   const emergencyTransfers = table.view(code).party!.transfers.filter(transfer => transfer.kind === 'bonus');
   expect(emergencyTransfers.map(transfer => transfer.amount)).toEqual([100, 100]);
   expect(new Set(emergencyTransfers.map(transfer => transfer.id)).size).toBe(2);

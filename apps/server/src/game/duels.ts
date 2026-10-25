@@ -30,7 +30,7 @@ export function openSocial(r:Room,e:EngineOptions,now:number){
   requireRule(r.mode==='PARTY'&&r.party,'PARTY_REQUIRED');requireRule(!r.party.social,'SOCIAL_ALREADY_OPEN');
   requireRule(!r.terminationConfirmed&&participants(r).length>=2,'NOT_ENOUGH_PLAYERS');
   r.party.socialRound=r.round;
-  r.party.social={id:e.id(),slotId:e.id(),openedAt:now,slot:1,slotOpenedAt:now,admissionDeadline:now+ADMISSION_MS,hardDeadline:now+(r.roundLimit===6?SOCIAL_MS*2:SOCIAL_MS),invites:[],duel:null,ballot:null,dealInvites:[],deal:null};
+  r.party.social={id:e.id(),slotId:e.id(),openedAt:now,slot:1,slotOpenedAt:now,admissionDeadline:now+ADMISSION_MS,hardDeadline:now+(r.roundLimit>=6?SOCIAL_MS*2:SOCIAL_MS),invites:[],duel:null,ballot:null,dealInvites:[],deal:null};
   r.phase='SOCIAL';r.deadline=now+ADMISSION_MS;r.activePlayerId=undefined;r.decisionId=undefined;
   event(r,e,'Social interval · Invite a player to a funded duel. The defender chooses the game.',now);
 }
@@ -175,7 +175,7 @@ export function cancelPlayerInvites(r:Room,playerId:string,e:EngineOptions,now:n
 export function socialDeadline(r:Room,e:EngineOptions,at:number):boolean{
   const social=r.party?.social;requireRule(social,'SOCIAL_CLOSED');
   if(r.phase==='DUEL_RESULT'||r.phase==='DEAL_RESULT'){
-    if(r.roundLimit===6&&social.slot===1&&!r.terminationConfirmed&&participants(r).length>=2&&social.hardDeadline-at>=SOCIAL_MS){
+    if(r.roundLimit>=6&&social.slot===1&&!r.terminationConfirmed&&participants(r).length>=2&&social.hardDeadline-at>=SOCIAL_MS){
       social.slot=2;social.slotId=e.id();social.slotOpenedAt=at;social.admissionDeadline=at+ADMISSION_MS;social.duel=null;social.deal=null;
       r.phase='SOCIAL';r.deadline=social.admissionDeadline;
       event(r,e,'Social interval · Second and final contest slot. Its deadlines share the original interval budget.',at);return false;

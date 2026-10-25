@@ -132,13 +132,13 @@ export function projectChaos(r:Room,viewerId:string):ChaosView{
 /** A held legal Emergency Fund can keep the next betting phase reachable. */
 export function canAffordNextRound(r:Room):boolean{
   const players=r.players.filter(p=>p.participating&&p.connected&&!p.departed);
-  let count=players.filter(p=>available(p.account)>=50).length;if(count>=2)return true;
+  let count=players.filter(p=>available(p.account)>=1).length;if(count>=2)return true;
   if(!r.party)return false;
   let reserveLeft=r.party.bonusReserve;
-  for(const p of players.filter(p=>available(p.account)<50).sort((a,b)=>a.account.balance-b.account.balance||a.seat-b.seat)){
+  for(const p of players.filter(p=>available(p.account)<1).sort((a,b)=>a.account.balance-b.account.balance||a.seat-b.seat)){
     if(r.party.chaos.emergencyUsed.includes(p.id)||!(r.party.chaos.inventories[p.id]??[]).some(c=>c.kind==='EMERGENCY_FUND'))continue;
     const award=Math.min(100,reserveLeft);if(!award)break;
-    if(available(p.account)+award<50)continue;
+    if(available(p.account)+award<1)continue;
     reserveLeft-=award;if(++count>=2)return true;
   }
   return false;
@@ -153,7 +153,7 @@ export function assertChaos(r:Room){
   requireRule(new Set(ids).size===ids.length,'DUPLICATE_CHAOS_CARD');
   for(const entries of [chaos.emergencyUsed,chaos.grantedRounds])requireRule(new Set(entries).size===entries.length,'DUPLICATE_CHAOS_SETTLEMENT');
   for(const [playerId,m] of Object.entries(chaos.multipliers)){
-    const p=r.players.find(p=>p.id===playerId);requireRule(p&&Number.isSafeInteger(m.base)&&m.base>=50&&m.base<=250&&m.base%50===0&&(m.factor===2||m.factor===3)&&p.wager===m.base*m.factor&&p.wager<=750&&chaos.usedRound[playerId]===r.roundId,'CHAOS_MULTIPLIER_INVARIANT');
+    const p=r.players.find(p=>p.id===playerId);requireRule(p&&Number.isSafeInteger(m.base)&&m.base>=1&&m.base<=750&&(m.factor===2||m.factor===3)&&p.wager===m.base*m.factor&&p.wager<=750&&chaos.usedRound[playerId]===r.roundId,'CHAOS_MULTIPLIER_INVARIANT');
     requireRule(m.factor===3?m.source==='TRIPLE_DOWN':m.source==='DOUBLE_DOWN'||m.source==='POT_TWIST','CHAOS_MULTIPLIER_SOURCE_INVARIANT');
     if(p.wagerId){for(const entries of [p.account.reservations,p.account.escrows])if(Object.hasOwn(entries,p.wagerId))requireRule(entries[p.wagerId]===p.wager,'CHAOS_FUNDING_INVARIANT');}
   }

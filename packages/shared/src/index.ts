@@ -1,4 +1,6 @@
-export const RULES = { startingChips:1000, minBet:50, maxBet:250, maxPlayers:6, rounds:3, bettingMs:20000, decisionMs:20000, offerMs:8000, revealMs:2000, dealingMs:1000, dealerMs:350, resultMs:4000, recoveryMs:60000 } as const;
+export const RULES = { startingChips:1000, minBet:1, maxBet:Math.floor(Number.MAX_SAFE_INTEGER/6), maxPlayers:6, rounds:3, bettingMs:20000, decisionMs:20000, offerMs:8000, revealMs:2000, dealingMs:1000, dealerMs:350, resultMs:4000, recoveryMs:60000 } as const;
+export const BET_CHIPS = [10,20,50,100,500,1000] as const;
+export function validBetAmount(input:unknown):input is number {return typeof input==='number'&&Number.isSafeInteger(input)&&input>=RULES.minBet&&input<=RULES.maxBet;}
 export const EMOJIS = ['😂','😱','🔥','👀','💀','👑'] as const;
 export const VOICE_STATUS = {available:false,status:'CONNECTIVITY_UNVERIFIED',message:'Room voice is unavailable while device and network connectivity remain unverified. No microphone is requested.'} as const;
 export type Suit = 'S'|'H'|'D'|'C';
@@ -21,6 +23,7 @@ export interface PlayerView {
   balance:number; reserved:number; available:number; committed:number; wager:number;
   hand:Card[]; value:HandValue|null; status:string; bluffUsed:boolean; bluffWins:number; bluffLosses:number;
   profile:ProfileView;
+  lobbyWins:number;
   doubled:boolean;doubleEligible:boolean;doubleReason:string;
 }
 export type ClaimType = 'NEXT_HIT_SAFE'|'NEXT_HIT_EXACT_21'|'BEAT_DEALER'|'THREE_CARD_WIN'|'DEALER_BUST';
@@ -61,13 +64,13 @@ export interface PartyView {houseId:string|null;houseSinceRound:number;overthrow
 export interface RoundPayout {playerId:string;stake:number;returned:number;profit:number;houseCommission:number}
 export interface RoomView {
   serverInstanceId:string; instanceId:string; code:string; revision:number; lobbyId:string; viewerId:string; hostId:string|null;
-  phase:Phase; mode:GameMode; roundLimit:3|6; finaleEnabled:boolean; visibility:'PRIVATE'|'PUBLIC';settings:RoomSettings;party:PartyView|null; roundPayouts:RoundPayout[]; players:PlayerView[]; matchId?:string; roundId?:string; round:number;
+  phase:Phase; mode:GameMode; roundLimit:number; startingChips:number; bettingSeconds:number; turnSeconds:number; finaleEnabled:boolean; visibility:'PRIVATE'|'PUBLIC';settings:RoomSettings;party:PartyView|null; roundPayouts:RoundPayout[]; players:PlayerView[]; matchId?:string; roundId?:string; round:number;
   deadline:number|null; serverTime:number; decisionId?:string; bettingId?:string; activePlayerId?:string;
   dealer:(Card|null)[]; dealerValue:HandValue|null; discarded:Card[]; bluff:BluffView|null; events:TableEvent[]; results:MatchResults|null; recoveryDeadline:number|null;
   chat:ChatMessage[];badgeRegistry:BadgeRule[];matchStats:MatchStats[];
   pendingClaims:BluffView[];claimOutcomes:BluffView[];claimRegistry:ClaimRule[];
 }
-export type CommandType = 'room:create'|'room:join'|'room:quickplay'|'lobby:settings'|'lobby:ready'|'lobby:mode'|'lobby:rounds'|'lobby:finale'|'bounty:contribute'|'bounty:invite'|'deal:offer'|'deal:accept'|'deal:reject'|'deal:choose'|'shadow:draw'|'shadow:stand'|'shadow:claim'|'shadow:pass'|'shadow:reveal'|'shadow:challenge'|'house:bid'|'house:ballot'|'house:vote'|'house:choose'|'chaos:activate'|'chaos:optin'|'duel:invite'|'duel:reject'|'duel:accept'|'duel:choose'|'duel:move'|'duel:resign'|'match:start'|'bet:submit'|'bet:withdraw'|'turn:hit'|'turn:stand'|'turn:double'|'bluff:offer'|'bluff:accept'|'reaction:send'|'chat:send'|'profile:update'|'room:leave'|'results:return'|'state:sync';
+export type CommandType = 'room:create'|'room:join'|'room:quickplay'|'lobby:settings'|'lobby:kick'|'lobby:ready'|'lobby:mode'|'lobby:rounds'|'lobby:finale'|'bounty:contribute'|'bounty:invite'|'deal:offer'|'deal:accept'|'deal:reject'|'deal:choose'|'shadow:draw'|'shadow:stand'|'shadow:claim'|'shadow:pass'|'shadow:reveal'|'shadow:challenge'|'house:bid'|'house:ballot'|'house:vote'|'house:choose'|'chaos:activate'|'chaos:optin'|'duel:invite'|'duel:reject'|'duel:accept'|'duel:choose'|'duel:move'|'duel:resign'|'match:start'|'bet:submit'|'bet:withdraw'|'turn:hit'|'turn:stand'|'turn:double'|'bluff:offer'|'bluff:accept'|'reaction:send'|'chat:send'|'profile:update'|'room:leave'|'results:return'|'state:sync';
 export interface Command { requestId:string; type:CommandType; roomInstanceId?:string; lobbyId?:string; matchId?:string; roundId?:string; decisionId?:string; bettingId?:string; offerId?:string; auctionId?:string; socialId?:string; socialSlotId?:string; dealOfferId?:string; dealId?:string; shadowId?:string; shadowClaimId?:string; inviteId?:string; duelId?:string; throwId?:string; moveId?:string; ballotId?:string; chaosWindowId?:string; payload?:Record<string,unknown> }
 export interface Ack { requestId:string; status:'ok'|'rejected'; code:string; message?:string; appliedRevision?:number; currentRevision:number }
 export interface SessionResponse { authenticated:boolean; playerId?:string; recoverable?:boolean; serverInstanceId:string; error?:string }

@@ -5,7 +5,7 @@ import { canOffer, dealerShouldHit, payout } from '../../apps/server/src/game/bl
 const hand = (...ranks: Rank[]): Card[] => ranks.map((rank, index) => ({ id: `test:${index}`, rank, suit: 'H' }));
 
 describe('Blackjack payouts', () => {
-  it.each([50, 100, 250])('settles all advertised outcomes for a %i-chip wager', (stake) => {
+  it.each([10,20,50,100,250,500,1000,1730])('settles all advertised outcomes for a %i-chip wager', (stake) => {
     expect(payout(hand('A', 'K'), hand('10', '8'), stake)).toEqual({ outcome: 'blackjack', returned: stake * 2.5, profit: stake * 1.5 });
     expect(payout(hand('10', '9'), hand('10', '8'), stake)).toEqual({ outcome: 'win', returned: stake * 2, profit: stake });
     expect(payout(hand('10', '8'), hand('10', '8'), stake)).toEqual({ outcome: 'push', returned: stake, profit: 0 });
@@ -38,7 +38,7 @@ describe('Blackjack payouts', () => {
     expect(payout(hand('10', '2'), dealer, 100).outcome).toBe('win');
   });
 
-  it.each([0, -50, 25, 51, 300, 50.5, NaN, Infinity, Number.MAX_SAFE_INTEGER])('rejects illegal stake %s', (stake) => {
+  it.each([0, -50, 50.5, NaN, Infinity, Number.MAX_SAFE_INTEGER])('rejects illegal stake %s', (stake) => {
     expect(() => payout(hand('A', 'K'), hand('10', '8'), stake)).toThrow('INVALID_WAGER_AMOUNT');
   });
 

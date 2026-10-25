@@ -100,6 +100,21 @@ describe('real HTTP and Socket.IO session boundary',()=>{
     expect(hostView!.viewerId).toBe(a.session.playerId);expect(otherView!.viewerId).toBe(b.session.playerId);
   });
 
+  it('notifies a kicked authenticated guest and rejects their stale room commands while allowing a fresh room',async()=>{
+    const url=await start(),a=await guest(url),b=await guest(url),host=await connect(url,a.cookie),other=await connect(url,b.cookie);
+    let hostView:RoomView|undefined,otherView:RoomView|undefined,leftMessage:unknown;
+    host.on('room:state',(view:RoomView)=>{hostView=view;});other.on('room:state',(view:RoomView)=>{otherView=view;});other.on('room:left',message=>{leftMessage=message;});
+    expect(await send(host,{requestId:'kick-create-host',type:'room:create',payload:{username:'Host'}})).toMatchObject({status:'ok'});await expect.poll(()=>hostView?.phase).toBe('LOBBY');
+    expect(await send(other,{requestId:'kick-join-guest',type:'room:join',payload:{username:'Guest',roomCode:hostView!.code}})).toMatchObject({status:'ok'});await expect.poll(()=>otherView?.players.length).toBe(2);
+    const context={roomInstanceId:hostView!.instanceId,lobbyId:hostView!.lobbyId};
+    expect(await send(host,{requestId:'kick-guest-now',type:'lobby:kick',...context,payload:{playerId:b.session.playerId}})).toMatchObject({status:'ok'});
+    await expect.poll(()=>leftMessage).toEqual({message:'The host removed you from the lobby.'});await expect.poll(()=>hostView?.players.length).toBe(1);
+    expect(server!.manager.snapshot(b.session.playerId!)).toBeNull();
+    expect(await send(other,{requestId:'kicked-stale-ready',type:'lobby:ready',...context,payload:{ready:true}})).toMatchObject({status:'rejected',code:'NO_MEMBERSHIP'});
+    const session=await fetch(`${url}/api/session`,{headers:{Cookie:b.cookie}}).then(response=>response.json()) as SessionResponse;expect(session).toMatchObject({authenticated:true,recoverable:false});expect(session.error).toBeUndefined();
+    expect(await send(other,{requestId:'kick-fresh-table',type:'room:create',payload:{username:'Fresh Host'}})).toMatchObject({status:'ok'});await expect.poll(()=>otherView?.hostId).toBe(b.session.playerId);expect(otherView!.instanceId).not.toBe(hostView!.instanceId);
+  });
+
   it('rejects untrusted origins and sockets without a session',async()=>{
     const url=await start();
     const denied=await fetch(`${url}/api/guest`,{method:'POST',headers:{Origin:'https://untrusted.invalid'}});

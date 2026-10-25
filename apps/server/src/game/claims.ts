@@ -1,4 +1,4 @@
-import {validAmount,type BluffView,type ClaimType,type ClaimRule,type ClaimEvidence} from '@bluff-house/shared';
+import {validAmount,validBetAmount,type BluffView,type ClaimType,type ClaimRule,type ClaimEvidence} from '@bluff-house/shared';
 import {evaluate} from './cards.js';
 import {payout} from './blackjack.js';
 import {settle} from './ledger.js';
@@ -108,7 +108,7 @@ export function assertClaims(r:Room){
   for(const p of r.players){
     for(const id of Object.keys(p.account.escrows).filter(id=>id.startsWith(`${r.matchId}:`)&&id.endsWith(':bluff')))requireRule(pending.some(o=>claimWagerId(r,o)===id&&(o.claimantId===p.id||o.challengerId===p.id)),'ORPHAN_CLAIM_ESCROW');
     requireRule(typeof p.doubled==='boolean'&&typeof p.chaosAffected==='boolean','DOUBLE_STATE_INVARIANT');
-    if(p.doubled)requireRule(r.mode==='PARTY'&&r.settings.doubleDown&&!p.chaosAffected&&!p.bluffUsed&&!r.party?.chaos.multipliers[p.id]&&validAmount(p.wager/2)&&p.hand.length===3&&p.status!=='playing','DOUBLE_STATE_INVARIANT');
+    if(p.doubled)requireRule(r.mode==='PARTY'&&r.settings.doubleDown&&!p.chaosAffected&&!p.bluffUsed&&!r.party?.chaos.multipliers[p.id]&&validBetAmount(p.wager/2)&&p.hand.length===3&&p.status!=='playing','DOUBLE_STATE_INVARIANT');
   }
   requireRule(!pending.length||!['LOBBY','BETTING','POT_TWIST','DEALING','HAND_CHAOS','ROUND_RESULT','SOCIAL','RESULTS','WAITING_FOR_PLAYERS'].includes(r.phase),'UNSETTLED_ROUND_CLAIM');
 }

@@ -82,6 +82,7 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await expect(pages[2].getByRole('heading',{name:'Place your bets',exact:true})).toBeVisible();
   expect(table.view(code).round).toBe(2);
   await pages[2].getByRole('button',{name:'Place Bet',exact:false}).click();
+  await pages[2].getByLabel('Double Down Chaos card',{exact:true}).locator(':scope > summary').click();
   await pages[2].getByRole('button',{name:'Play Double Down Chaos',exact:true}).click();
   expect(table.view(code).players[2]).toMatchObject({wager:200,reserved:200});
   expect(table.view(code).party!.chaos.inventories.find(inventory=>inventory.playerId===ids[2])!.cards.some(card=>card.id===earned.id)).toBe(false);

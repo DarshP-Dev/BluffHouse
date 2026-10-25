@@ -48,7 +48,7 @@ describe('Party mode authority and sealed auction',()=>{
     expect(f.view().party).toMatchObject({houseId:f.actors[1],vault:100});expect(f.view().players.map(p=>p.balance)).toEqual([1000,900]);
     expect(f.view().party!.transfers.filter(t=>t.kind==='auction')).toHaveLength(1);noPending(f);
   });
-  it.each([-1,1,49,75,301,350,50.5,'100',null])('rejects malformed or out-of-range bid %s without replacing an existing reservation',(amount)=>{
+  it.each([-1,1,49,75,901,950,50.5,'100',null])('rejects malformed or out-of-range bid %s without replacing an existing reservation',(amount)=>{
     const f=fixture({mode:'PARTY'});f.start();bid(f,0,100);const before=structuredClone(f.room());
     expect(f.send(f.host,'house:bid',{amount}).status).toBe('rejected');expect(f.room()).toEqual(before);
   });

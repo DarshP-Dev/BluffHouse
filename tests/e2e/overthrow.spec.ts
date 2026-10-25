@@ -87,7 +87,7 @@ test('a timed-out House choice forfeits the crown without showing fresh invitati
   for (const page of pages) {
     await expect(page.getByRole('heading', { name: 'Duel settled', exact: true })).toBeVisible();
     await expect(page.getByLabel('House overthrow')).toContainText('Blair takes the House crown.');
-    await expect(page.getByRole('button', { name: 'Send Duel Invite', exact: false })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Send Duel Invite', exact: false })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Begin Last Stand' })).toHaveCount(0);
   }
   expect(table.view(code).party!.houseId).toBe(challengerId);

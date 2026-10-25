@@ -5,5 +5,6 @@ import '@fontsource/cormorant-garamond/latin-600.css';
 import '@fontsource/cormorant-garamond/latin-400-italic.css';
 import './styles.css';
 import './reference-theme.css';
+import './gameplay-revision.css';
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

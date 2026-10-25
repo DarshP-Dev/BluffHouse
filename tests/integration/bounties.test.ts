@@ -13,14 +13,14 @@ function roundSocial(f:F,round:number){for(let n=0;n<40;n++){const v=f.view();if
 function complete(f:F){for(let n=0;n<100&&f.view().phase!=='RESULTS';n++){const v=f.view();expect(v.deadline).not.toBeNull();f.advance(v.deadline!-v.serverTime);}expect(f.view().phase).toBe('RESULTS');assertRoom(f.room());}
 function clean(f:F){expect(f.room().players.flatMap(p=>Object.values(p.account.reservations))).toEqual([]);expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);assertRoom(f.room());}
 
-describe('host-selected immutable Party round preset',()=>{
+describe('host-selected immutable match round count',()=>{
   it('resets all readiness and lobby identity when the host selects six rounds',()=>{
     const f=fixture({mode:'PARTY'});for(const actor of f.actors)f.send(actor,'lobby:ready',{ready:true});const stale=f.command(f.host,'match:start'),lobby=f.view().lobbyId;
     expect(f.send(f.host,'lobby:rounds',{rounds:6}).status).toBe('ok');expect(f.view().roundLimit).toBe(6);expect(f.view().lobbyId).not.toBe(lobby);expect(f.view().players.every(p=>!p.ready)).toBe(true);const before=structuredClone(f.room());expect(f.manager.command(f.host,stale).status).toBe('rejected');expect(f.room()).toEqual(before);f.start();expect(f.view().roundLimit).toBe(6);
   });
-  it('rejects nonhost, malformed and in-match settings, while Classic remains three rounds',()=>{
-    const f=fixture({mode:'PARTY'}),before=structuredClone(f.room());expect(f.send(f.actors[1]!,'lobby:rounds',{rounds:6}).status).toBe('rejected');for(const rounds of [0,4,5,6.5,'6',null]){expect(f.send(f.host,'lobby:rounds',{rounds}).status).toBe('rejected');expect(f.room()).toEqual(before);}f.start();const started=structuredClone(f.room());expect(f.send(f.host,'lobby:rounds',{rounds:6}).status).toBe('rejected');expect(f.room()).toEqual(started);
-    const classic=fixture();expect(classic.view().roundLimit).toBe(3);expect(classic.send(classic.host,'lobby:rounds',{rounds:6}).status).toBe('rejected');classic.start();classic.advance((RULES.bettingMs+RULES.resultMs)*3);expect(classic.view()).toMatchObject({phase:'RESULTS',round:3,roundLimit:3});clean(classic);
+  it('rejects nonhost, malformed and in-match settings, while Classic defaults to three rounds',()=>{
+    const f=fixture({mode:'PARTY'}),before=structuredClone(f.room());expect(f.send(f.actors[1]!,'lobby:rounds',{rounds:6}).status).toBe('rejected');for(const rounds of [0,21,5.5,6.5,'6',null]){expect(f.send(f.host,'lobby:rounds',{rounds}).status).toBe('rejected');expect(f.room()).toEqual(before);}f.start();const started=structuredClone(f.room());expect(f.send(f.host,'lobby:rounds',{rounds:6}).status).toBe('rejected');expect(f.room()).toEqual(started);
+    const classic=fixture();expect(classic.view().roundLimit).toBe(3);expect(classic.send(classic.host,'lobby:rounds',{rounds:4}).status).toBe('ok');classic.start();classic.advance((RULES.bettingMs+RULES.resultMs)*4);expect(classic.view()).toMatchObject({phase:'RESULTS',round:4,roundLimit:4});clean(classic);
   });
 });
 

@@ -15,7 +15,7 @@ export function startAuction(r:Room,e:EngineOptions,now:number){
 export function submitBid(r:Room,p:Player,c:Command){
   requireRule(r.mode==='PARTY'&&r.party&&r.phase==='HOUSE_AUCTION'&&r.party.auction.status==='open','AUCTION_CLOSED');
   requireRule(p.participating,'NOT_PARTICIPATING');requireRule(c.auctionId===r.party.auction.id,'STALE_AUCTION');
-  const amount=c.payload?.amount;requireRule(typeof amount==='number'&&Number.isSafeInteger(amount)&&(amount===0||(amount>=50&&amount<=300&&amount%50===0)),'INVALID_BID','Bid 50–300 chips in steps of 50, or pass.');
+  const amount=c.payload?.amount;requireRule(typeof amount==='number'&&Number.isSafeInteger(amount)&&(amount===0||(amount>=50&&amount<=900&&amount%50===0)),'INVALID_BID','Bid 50–900 chips in steps of 50, or pass.');
   if(amount===0)release(p.account,bidKey(r,p));else reserve(p.account,bidKey(r,p),amount);
   r.party.auction.bids[p.id]=amount;
 }

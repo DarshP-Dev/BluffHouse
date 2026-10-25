@@ -104,7 +104,10 @@ test('declined and expired invitations refund, and accepting releases the defend
   await pages[0].getByRole('button', { name: 'House bid 300 chips', exact: true }).click();
   await pages[0].getByRole('button', { name: 'Submit House Bid', exact: false }).click();
   table.advance(22000);
-  await pages[0].getByRole('button', { name: 'Bet 250 chips', exact: true }).click();
+  await pages[0].getByRole('button', { name: 'Clear Pot', exact: true }).click();
+  await pages[0].getByRole('button', { name: 'Bet 100 chips', exact: true }).click();
+  await pages[0].getByRole('button', { name: 'Bet 100 chips', exact: true }).click();
+  await pages[0].getByRole('button', { name: 'Bet 50 chips', exact: true }).click();
   await pages[0].getByRole('button', { name: 'Place Bet', exact: false }).click();
   table.advance(21000);
   await pages[0].getByRole('button', { name: 'Stand', exact: false }).click();

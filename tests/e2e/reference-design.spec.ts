@@ -25,6 +25,23 @@ async function controlFits(page: Page, control: Locator) {
   expect(box!.y + box!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
 }
 
+async function tableFirstDecision(page: Page, control: Locator) {
+  await page.evaluate(() => scrollTo(0, 0));
+  await expect(control).toHaveCount(1);
+  await expect(control).toBeEnabled();
+  const felt = page.getByLabel('Blackjack table', { exact: true });
+  const originalY = await felt.evaluate(element => element.getBoundingClientRect().top + scrollY);
+  const feltBox = await felt.boundingBox();
+  const controlBox = await control.boundingBox();
+  expect(controlBox!.y).toBeGreaterThanOrEqual(feltBox!.y + feltBox!.height);
+  const jump = page.getByRole('link', { name: 'Jump to current decision', exact: true });
+  await jump.focus();
+  await jump.press('Enter');
+  await expect(page.locator('#current-decision')).toBeFocused();
+  await expect(control).toBeInViewport({ ratio: 1 });
+  expect(Math.abs(await felt.evaluate(element => element.getBoundingClientRect().top + scrollY) - originalY)).toBeLessThan(2);
+}
+
 async function captureBothSizes(page: Page, name: string) {
   await page.evaluate(async () => { await document.fonts.ready; });
   await expect.poll(() => page.evaluate(() => Array.from(document.images).every(image => image.complete && image.naturalWidth > 0))).toBe(true);
@@ -110,32 +127,31 @@ test('reference lounge, lobby, sealed auction and live dashboard retain usable r
   await expect(page.getByRole('heading', { name: 'Player turns', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Hit/ })).toBeEnabled();
   await expect(page.getByRole('region', { name: 'Your game controls', exact: true })).toHaveCount(1);
-  await expect(page.getByLabel('Your current Blackjack hand', { exact: true }).locator('.playing-card')).toHaveCount(2);
+  await expect(page.locator('.felt-table .local-seat .playing-card')).toHaveCount(2);
   await leftToRight(page.locator('.dashboard-left'), page.locator('.game-column'), page.locator('.table-rail'));
   await expect(page.getByRole('region', { name: 'Room chat', exact: true })).toHaveCount(1);
-  await expect(page.locator('.player-seat')).toHaveCount(4);
-  await controlFits(page, page.getByRole('button', { name: /^Hit/ }));
-  await controlFits(page, page.getByRole('button', { name: /^Call My Bluff/ }));
+  await expect(page.locator('.felt-table .player-seat')).toHaveCount(4);
+  await expect(page.locator('.rival-hands')).toHaveCount(0);
+  await tableFirstDecision(page, page.getByRole('button', { name: /^Hit/ }));
+  await tableFirstDecision(page, page.getByRole('button', { name: /^Call My Bluff/ }));
   await captureBothSizes(page, 'dashboard');
 
-  await page.getByRole('link', { name: /^View Duels/ }).click();
-  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Duels between rounds', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Back to the table', exact: true }).click();
-  await page.getByRole('link', { name: /^Open bounty board/ }).click();
-  await expect(page.locator('#dashboard-bounties details')).toHaveAttribute('open', '');
-  await page.getByRole('link', { name: /No cards held/ }).click();
-  await expect(page.locator('#dashboard-chaos details').first()).toHaveAttribute('open', '');
+  await expect(page.getByRole('link', { name: /^View Duels/ })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /^Open bounty board/ })).toHaveCount(0);
+  const inlineDuels = page.locator('.compact-duels');
+  await expect(inlineDuels.getByRole('combobox', { name: 'Challenge a friend', exact: true })).toBeDisabled();
+  await expect(inlineDuels.getByRole('button', { name: 'Send Duel Invite', exact: true })).toBeDisabled();
+  await expect(page.locator('.compact-bounties')).toContainText('No active bounties.');
+  await expect(page.locator('.compact-bounties .bounty-list')).toHaveCount(1);
+  await expect(page.locator('.compact-chaos .chaos-empty')).toContainText('No cards held.');
 
   await page.setViewportSize(mobile);
   await page.evaluate(() => scrollTo(0, 0));
   const hit = page.getByRole('button', { name: /^Hit/ });
   await expect(hit).toHaveCount(1);
-  const box = await hit.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.y).toBeGreaterThanOrEqual(0);
-  expect(box!.y + box!.height).toBeLessThanOrEqual(mobile.height);
+  await tableFirstDecision(page, hit);
   await hit.click();
-  await expect(page.getByLabel('Your current Blackjack hand', { exact: true }).locator('.playing-card')).toHaveCount(3);
+  await expect(page.locator('.felt-table .local-seat .playing-card')).toHaveCount(3);
   expect(table.view(code).players[0].value?.total).toBe(19);
   await page.getByRole('button', { name: /^Stand/ }).click();
   await expect.poll(() => table.view(code).players[0].status).toBe('stood');
@@ -144,10 +160,10 @@ test('reference lounge, lobby, sealed auction and live dashboard retain usable r
   await page.setViewportSize(desktop);
   const accept = page.getByRole('button', { name: /^Accept Challenge/ });
   await expect(accept).toBeEnabled();
-  await controlFits(page, accept);
+  await tableFirstDecision(page, accept);
   const decisionBox = await page.locator('#current-decision').boundingBox();
   const feltBox = await page.locator('.felt-table').boundingBox();
-  expect(decisionBox!.y).toBeLessThan(feltBox!.y);
+  expect(decisionBox!.y).toBeGreaterThanOrEqual(feltBox!.y + feltBox!.height);
   await page.screenshot({ path: 'test-results/reference-challenge-desktop.png' });
   await accept.click();
   await expect.poll(() => table.view(code).phase).toBe('BLUFF_REVEAL');

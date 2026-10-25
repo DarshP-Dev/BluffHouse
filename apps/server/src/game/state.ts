@@ -6,14 +6,14 @@ export interface Player {
   id:string; name:string; seat:number; joinedAt:number; connected:boolean; departed:boolean; ready:boolean;
   disconnectedAt:number|null; account:Account; hand:Card[]; status:string; wager:number; wagerId?:string;
   participating:boolean; bluffUsed:boolean; bluffWins:number; bluffLosses:number;
-  profile:ProfileState;matchStats:MatchStats;
+  profile:ProfileState;matchStats:MatchStats;lobbyWins:number;
   doubled:boolean;chaosAffected:boolean;
 }
 export interface BluffState extends BluffView {acceptedOrder?:number;proof?:{hand:Card[];dealer?:Card[]}}
 export interface PendingClaimState extends BluffState {lockedHands:Record<string,Card[]>}
 export interface ProfileState {initials:string;color:ProfileColor;badges:EarnedBadge[];acceptedBluffWins:number;matchProgress:{matchId:string|null;bottomTwo:boolean;bottomRoundId:string|null;lastSettledRoundId:string|null}}
 export interface Room {
-  mode:GameMode; roundLimit:3|6; finaleEnabled:boolean;visibility:'PRIVATE'|'PUBLIC';settings:RoomSettings;party:PartyState|null; roundPayouts:RoundPayout[];
+  mode:GameMode; roundLimit:number; startingChips:number; bettingSeconds:number; turnSeconds:number; winsRecordedMatchId:string|null; lobbyWinsByPlayer:Record<string,number>; finaleEnabled:boolean;visibility:'PRIVATE'|'PUBLIC';settings:RoomSettings;party:PartyState|null; roundPayouts:RoundPayout[];
   instanceId:string; code:string; revision:number; lobbyId:string; hostId:string|null; phase:Phase; players:Player[];
   matchId?:string; roundId?:string; round:number; initialChips:number; dealerNet:number;
   shoe:Card[]; cursor:number; dealer:Card[]; dealerRevealed:boolean; discarded:Card[];

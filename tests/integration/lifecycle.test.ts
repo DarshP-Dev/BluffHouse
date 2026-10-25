@@ -106,7 +106,7 @@ describe('safe-boundary ordering and affordability',()=>{
     f.advance(60000);expect(f.view().round).toBe(3);expect(f.room().terminationConfirmed).toBe(true);expect(f.view().phase).not.toBe('RESULTS');
     f.advance(30000);expect(f.view().phase).toBe('RESULTS');expect(f.view().results?.reason).toContain('recovery window');noEscrow(f);
   });
-  it.each([[1000,25],[25,25]])('ends after settlement when fewer than two players can afford 50 (%j)',(first,second)=>{
+  it.each([[1000,0],[0,0]])('ends after settlement when fewer than two players can afford one chip (%j)',(first,second)=>{
     const f=fixture();f.start();balances(f,[first,second]);skipRound(f);
     expect(f.view().phase).toBe('RESULTS');expect(f.view().results?.reason).toContain('minimum wager');expect(f.view().round).toBe(1);noEscrow(f);
   });
@@ -114,7 +114,7 @@ describe('safe-boundary ordering and affordability',()=>{
     const f=fixture();f.start();balances(f,[50,50]);skipRound(f);expect(f.view().phase).toBe('BETTING');expect(f.view().round).toBe(2);expect(f.view().results).toBeNull();
   });
   it('honors connection recovery before affordability, then checks money immediately when guests return',()=>{
-    const f=fixture();f.start();balances(f,[1000,25]);f.manager.presence(f.actors[1]!,false);skipRound(f);
+    const f=fixture();f.start();balances(f,[1000,0]);f.manager.presence(f.actors[1]!,false);skipRound(f);
     expect(f.view().phase).toBe('WAITING_FOR_PLAYERS');expect(f.view().results).toBeNull();f.advance(35000);f.manager.presence(f.actors[1]!,true);
     expect(f.view().phase).toBe('RESULTS');expect(f.view().results?.reason).toContain('minimum wager');
   });
