@@ -2,6 +2,8 @@
 
 Report date: October 25, 2026. Repository: `C:\Users\Darsh\BluffHouse`, branch `main`.
 
+Verified Slice 17 implementation milestone: `2bcda22`.
+
 Slices 1–15 are implemented, verified and committed. Slice 16's conditional evaluation is complete with voice unavailable; microphone/signaling/mesh support is not represented as delivered. Slice 17 implementation and mechanical verification are complete, ready for the required final user exploration. Approved planning and the Classic user checkpoint are preserved.
 
 ## Final verification
