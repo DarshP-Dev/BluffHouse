@@ -83,7 +83,7 @@ describe('finite Emergency Fund',()=>{
     const f=betting();reserveBonus(f,37);const first=card(f,1,'EMERGENCY_FUND'),second=card(f,2,'EMERGENCY_FUND');expect(f.view(f.actors[1]).party!.chaos.emergencyAmount).toBe(37);expect(activate(f,1,first).status).toBe('ok');expect(f.view().party!.bonusReserve).toBe(0);expect(f.view().players[1]!.balance).toBe(1037);const before=structuredClone(f.room());expect(activate(f,2,second).status).toBe('rejected');expect(f.room()).toEqual(before);assertRoom(f.room());
   });
   it('allows a held funded Emergency card to avert premature affordability termination without automatically crediting it',()=>{
-    const f=betting(2);balances(f,[0,100]);card(f,0,'EMERGENCY_FUND');f.advance(RULES.bettingMs+RULES.resultMs);expect(f.view().phase).toBe('SOCIAL');f.advance(20000);expect(f.view().phase).toBe('BETTING');expect(f.view().players[0]!.balance).toBe(0);const held=f.view().party!.chaos.inventories.find(i=>i.playerId===f.host)!.cards.find(c=>c.kind==='EMERGENCY_FUND')!;expect(activate(f,0,held.id).status).toBe('ok');expect(f.view().players[0]!.balance).toBe(100);assertRoom(f.room());
+    const f=betting(2);balances(f,[0,100]);card(f,0,'EMERGENCY_FUND');f.advance(RULES.bettingMs+RULES.resultMs);if(f.view().phase==='SOCIAL')f.advance(20000);expect(f.view()).toMatchObject({phase:'BETTING',round:2});expect(f.view().players[0]!.balance).toBe(0);const held=f.view().party!.chaos.inventories.find(i=>i.playerId===f.host)!.cards.find(c=>c.kind==='EMERGENCY_FUND')!;expect(activate(f,0,held.id).status).toBe('ok');expect(f.view().players[0]!.balance).toBe(100);assertRoom(f.room());
   });
 });
 

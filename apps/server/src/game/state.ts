@@ -1,5 +1,5 @@
 import type {BluffView, Card, MatchResults, Phase, TableEvent, GameMode, PartyTransfer, RoundPayout, DuelInvite, DuelView, RpsChoice, BallotView, ChaosCard, ChaosKind, PotTwistView, BountyView} from '@bluff-house/shared';
-import type {DealView,DealChoice,DealOffer,ShadowClaim,ProfileColor,EarnedBadge,MatchStats,ChatMessage} from '@bluff-house/shared';
+import type {DealView,DealChoice,DealOffer,ShadowClaim,ProfileColor,EarnedBadge,MatchStats,ChatMessage,RoomSettings} from '@bluff-house/shared';
 import type {Account} from './ledger.js';
 
 export interface Player {
@@ -10,7 +10,7 @@ export interface Player {
 }
 export interface ProfileState {initials:string;color:ProfileColor;badges:EarnedBadge[];acceptedBluffWins:number;matchProgress:{matchId:string|null;bottomTwo:boolean;bottomRoundId:string|null;lastSettledRoundId:string|null}}
 export interface Room {
-  mode:GameMode; roundLimit:3|6; finaleEnabled:boolean; party:PartyState|null; roundPayouts:RoundPayout[];
+  mode:GameMode; roundLimit:3|6; finaleEnabled:boolean;visibility:'PRIVATE'|'PUBLIC';settings:RoomSettings;party:PartyState|null; roundPayouts:RoundPayout[];
   instanceId:string; code:string; revision:number; lobbyId:string; hostId:string|null; phase:Phase; players:Player[];
   matchId?:string; roundId?:string; round:number; initialChips:number; dealerNet:number;
   shoe:Card[]; cursor:number; dealer:Card[]; dealerRevealed:boolean; discarded:Card[];

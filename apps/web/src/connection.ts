@@ -64,8 +64,10 @@ function connectSocket(): Promise<void> {
   next.on('room:state', (room: RoomView) => {
     if (socket !== next) return;
     if (state.room?.instanceId === room.instanceId && room.revision < state.room.revision) return;
+    const sameInstance = state.room?.instanceId === room.instanceId;
+    if (!sameInstance) pendingChatRequestId = null;
     const sameTable = state.room?.instanceId === room.instanceId && state.room?.lobbyId === room.lobbyId;
-    publish({ room, status: 'connected', clockOffset: room.serverTime - Date.now(), reactions: sameTable ? state.reactions : [] });
+    publish({ room, status: 'connected', clockOffset: room.serverTime - Date.now(), reactions: sameTable ? state.reactions : [], ...(!sameInstance ? { chatPending: false, chatError: null } : {}) });
   });
   next.on('room:reaction', ({ roomInstanceId, event }: { roomInstanceId: string; event: TableEvent }) => {
     if (socket !== next || state.status !== 'connected' || state.room?.instanceId !== roomInstanceId || state.reactions.some(item => item.id === event.id)) return;
@@ -206,7 +208,7 @@ export async function sendChat(text: string): Promise<boolean> {
   });
 }
 
-export async function enterRoom(mode: 'host' | 'join', username: string, roomCode: string): Promise<boolean> {
+export async function enterRoom(mode: 'host' | 'join' | 'quick', username: string, roomCode: string, options?: { visibility?: 'PRIVATE' | 'PUBLIC'; preset?: 'CLASSIC' | 'PARTY' | 'PARTY_6' }): Promise<boolean> {
   publish({ error: null });
   try {
     if (!socket?.connected) {
@@ -215,7 +217,7 @@ export async function enterRoom(mode: 'host' | 'join', username: string, roomCod
       if (!response.ok) throw new Error('Could not create a guest session. Please try again.');
       await connectSocket();
     }
-    return await sendCommand(mode === 'host' ? 'room:create' : 'room:join', mode === 'host' ? { username: username.trim() } : { username: username.trim(), roomCode: roomCode.trim().toUpperCase() });
+    return await sendCommand(mode === 'host' ? 'room:create' : mode === 'quick' ? 'room:quickplay' : 'room:join', mode === 'host' ? { username: username.trim(), visibility: options?.visibility ?? 'PRIVATE' } : mode === 'quick' ? { username: username.trim(), preset: options?.preset ?? 'CLASSIC' } : { username: username.trim(), roomCode: roomCode.trim().toUpperCase() });
   } catch (error) {
     publish({ error: error instanceof Error ? error.message : 'Could not enter the room.', status: 'idle', pending: null });
     return false;

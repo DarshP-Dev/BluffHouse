@@ -6,8 +6,9 @@ const bidKey=(r:Room,p:Player)=>`${r.matchId}:${r.party!.auction.id}:${p.id}:hou
 
 export function startAuction(r:Room,e:EngineOptions,now:number){
   const initialBonusReserve=r.players.filter(p=>p.participating).length*100;
-  r.party={bounties:[],houseId:null,houseSinceRound:0,overthrowHistory:[],vault:0,bonusReserve:initialBonusReserve,initialBonusReserve,vaultDistributed:false,transfers:[],social:null,socialRound:0,duelHistory:[],dealHistory:[],shadow:null,chaos:{inventories:{},usedRound:{},emergencyUsed:[],grantedRounds:[],multipliers:{},potTwist:null,handWindow:null,ordinaryHits:{}},auction:{id:e.id(),deadline:now+20000,status:'open',bids:{},winnerId:null,winningBid:null}};
-  r.phase='HOUSE_AUCTION';r.deadline=r.party.auction.deadline;r.roundId=undefined;r.bettingId=undefined;r.decisionId=undefined;r.activePlayerId=undefined;
+  const enabled=r.settings.house;
+  r.party={bounties:[],houseId:null,houseSinceRound:0,overthrowHistory:[],vault:0,bonusReserve:initialBonusReserve,initialBonusReserve,vaultDistributed:false,transfers:[],social:null,socialRound:0,duelHistory:[],dealHistory:[],shadow:null,chaos:{inventories:{},usedRound:{},emergencyUsed:[],grantedRounds:[],multipliers:{},potTwist:null,handWindow:null,ordinaryHits:{}},auction:{id:e.id(),deadline:now+(enabled?20000:0),status:enabled?'open':'revealed',bids:{},winnerId:null,winningBid:enabled?null:0}};
+  r.phase=enabled?'HOUSE_AUCTION':'BETTING';r.deadline=enabled?r.party.auction.deadline:null;r.roundId=undefined;r.bettingId=undefined;r.decisionId=undefined;r.activePlayerId=undefined;
   for(const p of r.players)p.status=p.participating?'waiting':'observer';
 }
 

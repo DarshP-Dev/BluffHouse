@@ -5,6 +5,8 @@ export type Rank = 'A'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'|'10'|'J'|'Q'|'K';
 export interface Card { id:string; rank:Rank; suit:Suit }
 export interface HandValue { total:number; soft:boolean; bust:boolean; natural:boolean }
 export type GameMode = 'CLASSIC'|'PARTY';
+export interface RoomSettings {maxPlayers:number;house:boolean;duels:boolean;overthrow:boolean;chaos:boolean;bounties:boolean;deals:boolean}
+export function defaultSettings(mode:GameMode):RoomSettings {const enabled=mode==='PARTY';return {maxPlayers:6,house:enabled,duels:enabled,overthrow:enabled,chaos:enabled,bounties:enabled,deals:enabled};}
 export type ProfileColor = 'GOLD'|'RUBY'|'EMERALD'|'SAPPHIRE'|'VIOLET'|'CORAL';
 export type BadgeId = 'HOUSEBREAKER'|'BOUNTY_HUNTER'|'MASTER_BLUFFER'|'VAULT_THIEF'|'UNTOUCHABLE'|'BETRAYER'|'HIGH_ROLLER'|'COMEBACK_KING';
 export interface BadgeRule {id:BadgeId;name:string;description:string}
@@ -54,12 +56,12 @@ export interface PartyView {houseId:string|null;houseSinceRound:number;overthrow
 export interface RoundPayout {playerId:string;stake:number;returned:number;profit:number;houseCommission:number}
 export interface RoomView {
   serverInstanceId:string; instanceId:string; code:string; revision:number; lobbyId:string; viewerId:string; hostId:string|null;
-  phase:Phase; mode:GameMode; roundLimit:3|6; finaleEnabled:boolean; party:PartyView|null; roundPayouts:RoundPayout[]; players:PlayerView[]; matchId?:string; roundId?:string; round:number;
+  phase:Phase; mode:GameMode; roundLimit:3|6; finaleEnabled:boolean; visibility:'PRIVATE'|'PUBLIC';settings:RoomSettings;party:PartyView|null; roundPayouts:RoundPayout[]; players:PlayerView[]; matchId?:string; roundId?:string; round:number;
   deadline:number|null; serverTime:number; decisionId?:string; bettingId?:string; activePlayerId?:string;
   dealer:(Card|null)[]; dealerValue:HandValue|null; discarded:Card[]; bluff:BluffView|null; events:TableEvent[]; results:MatchResults|null; recoveryDeadline:number|null;
   chat:ChatMessage[];badgeRegistry:BadgeRule[];matchStats:MatchStats[];
 }
-export type CommandType = 'room:create'|'room:join'|'lobby:ready'|'lobby:mode'|'lobby:rounds'|'lobby:finale'|'bounty:contribute'|'bounty:invite'|'deal:offer'|'deal:accept'|'deal:reject'|'deal:choose'|'shadow:draw'|'shadow:stand'|'shadow:claim'|'shadow:pass'|'shadow:reveal'|'shadow:challenge'|'house:bid'|'house:ballot'|'house:vote'|'house:choose'|'chaos:activate'|'chaos:optin'|'duel:invite'|'duel:reject'|'duel:accept'|'duel:choose'|'duel:move'|'duel:resign'|'match:start'|'bet:submit'|'bet:withdraw'|'turn:hit'|'turn:stand'|'bluff:offer'|'bluff:accept'|'reaction:send'|'chat:send'|'profile:update'|'room:leave'|'results:return'|'state:sync';
+export type CommandType = 'room:create'|'room:join'|'room:quickplay'|'lobby:settings'|'lobby:ready'|'lobby:mode'|'lobby:rounds'|'lobby:finale'|'bounty:contribute'|'bounty:invite'|'deal:offer'|'deal:accept'|'deal:reject'|'deal:choose'|'shadow:draw'|'shadow:stand'|'shadow:claim'|'shadow:pass'|'shadow:reveal'|'shadow:challenge'|'house:bid'|'house:ballot'|'house:vote'|'house:choose'|'chaos:activate'|'chaos:optin'|'duel:invite'|'duel:reject'|'duel:accept'|'duel:choose'|'duel:move'|'duel:resign'|'match:start'|'bet:submit'|'bet:withdraw'|'turn:hit'|'turn:stand'|'bluff:offer'|'bluff:accept'|'reaction:send'|'chat:send'|'profile:update'|'room:leave'|'results:return'|'state:sync';
 export interface Command { requestId:string; type:CommandType; roomInstanceId?:string; lobbyId?:string; matchId?:string; roundId?:string; decisionId?:string; bettingId?:string; offerId?:string; auctionId?:string; socialId?:string; socialSlotId?:string; dealOfferId?:string; dealId?:string; shadowId?:string; shadowClaimId?:string; inviteId?:string; duelId?:string; throwId?:string; moveId?:string; ballotId?:string; chaosWindowId?:string; payload?:Record<string,unknown> }
 export interface Ack { requestId:string; status:'ok'|'rejected'; code:string; message?:string; appliedRevision?:number; currentRevision:number }
 export interface SessionResponse { authenticated:boolean; playerId?:string; recoverable?:boolean; serverInstanceId:string; error?:string }
