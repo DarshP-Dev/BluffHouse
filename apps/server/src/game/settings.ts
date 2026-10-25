@@ -3,7 +3,7 @@ import {available} from './ledger.js';
 import {dealPairUsed} from './deals.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
-const SETTING_KEYS=['maxPlayers','house','duels','overthrow','chaos','bounties','deals'] as const;
+const SETTING_KEYS=['maxPlayers','house','duels','overthrow','chaos','bounties','deals','doubleDown','extraClaims'] as const;
 function settingsRecord(value:unknown):value is RoomSettings{
   if(!value||typeof value!=='object'||Array.isArray(value)||![Object.prototype,null].includes(Object.getPrototypeOf(value)))return false;
   const record=value as Record<string,unknown>;
@@ -24,7 +24,7 @@ export function configureSettings(r:Room,p:Player,c:Command,e:EngineOptions,now:
   requireRule(r.mode==='PARTY'||rounds===3&&!finale&&isDefaultClassic(settings),'CLASSIC_SETTINGS_FIXED','Classic uses its fixed three-round rules and six-player cap.');
   const changed=SETTING_KEYS.some(key=>r.settings[key]!==settings[key])||r.roundLimit!==rounds||r.finaleEnabled!==finale||r.visibility!==visibility;
   if(!changed)return false;
-  r.settings={maxPlayers:settings.maxPlayers,house:settings.house,duels:settings.duels,overthrow:settings.overthrow,chaos:settings.chaos,bounties:settings.bounties,deals:settings.deals};r.roundLimit=rounds;r.finaleEnabled=finale;r.visibility=visibility;r.lobbyId=e.id();
+  r.settings={maxPlayers:settings.maxPlayers,house:settings.house,duels:settings.duels,overthrow:settings.overthrow,chaos:settings.chaos,bounties:settings.bounties,deals:settings.deals,doubleDown:settings.doubleDown,extraClaims:settings.extraClaims};r.roundLimit=rounds;r.finaleEnabled=finale;r.visibility=visibility;r.lobbyId=e.id();
   for(const player of r.players)player.ready=false;
   r.events.push({id:e.id(),kind:'settings',text:'Room settings updated. Everyone must ready up again.',at:now,revision:r.revision+1});r.events=r.events.slice(-60);return true;
 }

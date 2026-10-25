@@ -1,10 +1,11 @@
 import type {ChaosKind,Command} from '@bluff-house/shared';
 import {evaluate} from './cards.js';
 import {addEvent,draw,finishHit} from './engine.js';
+import {handProtected} from './claims.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function eligibleHands(r:Room):Player[]{
-  return r.players.filter(p=>p.participating&&p.connected&&!p.departed&&p.status==='playing'&&p.hand.length===2&&!evaluate(p.hand).natural&&!!p.wagerId&&p.wager>0&&p.account.escrows[p.wagerId]===p.wager).sort((a,b)=>a.seat-b.seat);
+  return r.players.filter(p=>p.participating&&p.connected&&!p.departed&&p.status==='playing'&&!p.doubled&&!handProtected(r,p.id)&&p.hand.length===2&&!evaluate(p.hand).natural&&!!p.wagerId&&p.wager>0&&p.account.escrows[p.wagerId]===p.wager).sort((a,b)=>a.seat-b.seat);
 }
 
 export function openHandWindow(r:Room,e:EngineOptions,now:number):boolean{
@@ -26,6 +27,7 @@ export function markOrdinaryHit(r:Room,p:Player){
 }
 
 export function handCardReason(r:Room,p:Player,kind:ChaosKind):string|null{
+  if(handProtected(r,p.id))return 'A funded unresolved claim protects this hand from movement and redraw until round settlement.';
   if(kind==='SECOND_CHANCE'){
     if(r.phase!=='PLAYER_TURN'||r.activePlayerId!==p.id)return 'Second Chance requires your next decision after an ordinary Hit.';
     if(p.status!=='playing'||evaluate(p.hand).total>=21||evaluate(p.hand).natural)return 'Second Chance cannot replace a bust, 21, natural, or settled hand.';
@@ -60,11 +62,12 @@ export function applyHandCard(r:Room,p:Player,kind:ChaosKind,c:Command,e:EngineO
     const target=eligible.find(player=>player.id===c.payload?.targetId&&player.id!==p.id);
     requireRule(target,'INVALID_HAND_TARGET','Choose a different connected player with a funded, unacted, non-natural two-card hand.');
     [p.hand,target.hand]=[target.hand,p.hand];
+    p.chaosAffected=true;target.chaosAffected=true;
     addEvent(r,e,'chaos',`${p.name} swaps hands with ${target.name}. Wagers and seats stay with their owners.`,now,p.id);
   }else{
     requireRule(kind==='TABLE_TURN','INVALID_CHAOS_KIND');
     const hands=eligible.map(player=>player.hand);
-    for(let i=0;i<eligible.length;i++)eligible[i]!.hand=hands[(i+1)%hands.length]!;
+    for(let i=0;i<eligible.length;i++){eligible[i]!.hand=hands[(i+1)%hands.length]!;eligible[i]!.chaosAffected=true;}
     addEvent(r,e,'chaos',`${p.name} plays Table Turn. Eligible hands move one seat left; wagers and seats stay with their owners.`,now,p.id);
   }
   window.resolved=true;

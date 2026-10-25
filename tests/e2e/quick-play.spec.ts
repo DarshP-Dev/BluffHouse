@@ -77,12 +77,12 @@ test('host Party settings preserve sparse occupied seats, enforce dependencies a
   await pages[0].getByRole('checkbox', { name: 'House overthrow', exact: true }).uncheck();
   await pages[0].getByRole('checkbox', { name: 'Direct duels', exact: true }).uncheck();
   await expect(pages[0].locator('.settings-dependency')).toContainText('Bounties require direct duels');
-  for (const label of ['Bounties', 'Chaos cards', 'Split or Steal deals']) await pages[0].getByRole('checkbox', { name: label, exact: true }).uncheck();
+  for (const label of ['Bounties', 'Chaos cards', 'Split or Steal deals', 'Ordinary Double Down', 'Additional bluff claims']) await pages[0].getByRole('checkbox', { name: label, exact: true }).uncheck();
   await pages[0].getByRole('combobox', { name: 'Table visibility', exact: true }).selectOption('PRIVATE');
   await pages[0].getByRole('button', { name: 'Apply Room Settings', exact: true }).click();
   await expect(pages[5].getByRole('button', { name: 'Ready Up', exact: true })).toBeVisible();
   expect(table.view(code).lobbyId).not.toBe(beforeLobby);
-  expect(table.view(code).settings).toEqual({ maxPlayers: 2, house: false, duels: false, overthrow: false, chaos: false, bounties: false, deals: false });
+  expect(table.view(code).settings).toEqual({ maxPlayers: 2, house: false, duels: false, overthrow: false, chaos: false, bounties: false, deals: false, doubleDown: false, extraClaims: false });
   expect(table.view(code).players.map(player => player.seat)).toEqual([0, 5]);
   for (const page of [pages[0], pages[5]]) {
     await expect(page.locator('.lobby-seat')).toHaveCount(2);

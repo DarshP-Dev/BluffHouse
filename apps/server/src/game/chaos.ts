@@ -87,7 +87,7 @@ export function chaosCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:numbe
     const window=chaos.potTwist;
     requireRule(window&&c.chaosWindowId===window.id&&window.roundId===r.roundId&&window.status==='open'&&window.deadline!==null&&now<window.deadline,'STALE_CHAOS_WINDOW','This Pot Twist window has closed or changed.');
     const reason=optInReason(r,p);requireRule(!reason,'CHAOS_UNAVAILABLE',reason??undefined);
-    applyMultiplier(r,p,2,'POT_TWIST');window.optedInIds.push(p.id);chaos.usedRound[p.id]=r.roundId!;
+    applyMultiplier(r,p,2,'POT_TWIST');window.optedInIds.push(p.id);chaos.usedRound[p.id]=r.roundId!;p.chaosAffected=true;
     addEvent(r,e,'chaos',`${p.name} opts into Pot Twist: ${p.wager} chips funded.`,now,p.id);return;
   }
   requireRule(c.type==='chaos:activate','UNAVAILABLE_ACTION');
@@ -110,7 +110,7 @@ export function chaosCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:numbe
     applyMultiplier(r,p,card.kind==='DOUBLE_DOWN'?2:3,card.kind);
     addEvent(r,e,'chaos',`${p.name} plays ${card.kind==='DOUBLE_DOWN'?'Double':'Triple'} Down Chaos: ${p.wager} chips funded.`,now,p.id);
   }
-  inventory.splice(inventory.indexOf(card),1);chaos.usedRound[p.id]=r.roundId!;
+  inventory.splice(inventory.indexOf(card),1);chaos.usedRound[p.id]=r.roundId!;p.chaosAffected=true;
 }
 
 export function openPotTwist(r:Room,now:number):boolean{

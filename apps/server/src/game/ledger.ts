@@ -89,6 +89,15 @@ export function commit(a: Account, id: string): number {
   return amount;
 }
 
+/** Ordinary Double Down adds exactly the funded original stake to its existing wager. */
+export function increaseEscrow(a:Account,id:string,extra:number):void {
+  assertAccount(a);identifier(id);integer(extra,1);
+  if(a.escrows[id]!==extra)throw new Error('INVALID_DOUBLE_STAKE');
+  if(extra>available(a))throw new Error('INSUFFICIENT_AVAILABLE_CHIPS');
+  const total=a.escrows[id]!+extra;integer(total,1);
+  a.balance-=extra;a.escrows[id]=total;
+}
+
 /** The returned amount includes any returned principal and is credited once. */
 export function settle(a: Account, id: string, returned: number): boolean {
   assertAccount(a);

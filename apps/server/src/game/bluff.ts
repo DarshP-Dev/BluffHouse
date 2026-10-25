@@ -1,23 +1,23 @@
 import {RULES,validAmount,type Command} from '@bluff-house/shared';
-import {evaluate} from './cards.js';
 import {canOffer} from './blackjack.js';
-import {reserve,release,commit,settle} from './ledger.js';
+import {reserve,release,commit} from './ledger.js';
+import {CLAIM_RULES,isDeferredClaim,completeClaim} from './claims.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
-const claimRegistry={NEXT_HIT_SAFE:{eligible:canOffer,wins:(p:Player)=>!evaluate(p.hand).bust}};
 const wagerId=(r:Room)=>`${r.matchId}:${r.bluff!.id}:bluff`;
 
 export function offerBluff(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
   requireRule(r.phase==='PLAYER_TURN','PHASE_LOCKED');
   requireRule(r.activePlayerId===p.id,'NOT_YOUR_TURN');
   requireRule(c.decisionId===r.decisionId,'STALE_DECISION');
-  requireRule(c.payload?.claimType==='NEXT_HIT_SAFE','INVALID_CLAIM');
+  const rule=CLAIM_RULES.find(rule=>rule.type===c.payload?.claimType);requireRule(rule,'INVALID_CLAIM');
+  requireRule(rule.type==='NEXT_HIT_SAFE'||r.mode==='PARTY'&&r.settings.extraClaims,'EXTRA_CLAIMS_DISABLED','Additional claims require the Party extra-claims setting.');
   requireRule(!p.bluffUsed,'OFFER_ALREADY_USED','One bluff offer per hand, including expired offers.');
-  requireRule(claimRegistry.NEXT_HIT_SAFE.eligible(p.hand),'INELIGIBLE_HAND','Call My Bluff needs a hard total from 12 to 20.');
-  const amount=c.payload.amount;requireRule(validAmount(amount),'INVALID_AMOUNT');
+  requireRule(canOffer(p.hand),'INELIGIBLE_HAND','Call My Bluff needs a hard total from 12 to 20.');
+  const amount=c.payload?.amount;requireRule(validAmount(amount),'INVALID_AMOUNT');
   const offerId=e.id();reserve(p.account,`${r.matchId}:${offerId}:bluff`,amount);
   r.pausedRemaining=Math.max(0,(r.deadline??now)-now);p.bluffUsed=true;
-  r.bluff={id:offerId,claimantId:p.id,amount,deadline:now+RULES.offerMs,status:'open'};
+  r.bluff={id:offerId,claimantId:p.id,amount,deadline:now+RULES.offerMs,status:'open',claimType:rule.type,timing:rule.timing,roundId:r.roundId};
   r.phase='BLUFF_OFFER';r.deadline=r.bluff.deadline;r.decisionId=undefined;
 }
 
@@ -31,13 +31,14 @@ export function acceptBluff(r:Room,p:Player,c:Command,_e:EngineOptions,now:numbe
   requireRule(claimant.connected&&!claimant.departed,'CLAIMANT_UNAVAILABLE');
   const id=wagerId(r);requireRule(claimant.account.reservations[id]===offer.amount,'MISSING_RESERVATION');
   reserve(p.account,id,offer.amount);commit(claimant.account,id);commit(p.account,id);
+  Object.assign(offer,{status:'accepted',challengerId:p.id,pot:offer.amount*2,acceptedOrder:r.bluffOutcomes.length+r.pendingClaims.length+1});
+  if(isDeferredClaim(offer.claimType??'NEXT_HIT_SAFE')){
+    offer.settlement='pending';
+    r.pendingClaims.push({...structuredClone(offer),lockedHands:{[claimant.id]:structuredClone(claimant.hand),[p.id]:structuredClone(p.hand)}});
+    r.phase='BLUFF_REVEAL';r.deadline=now+RULES.revealMs;r.decisionId=undefined;return;
+  }
   const card=r.shoe[r.cursor];requireRule(card,'SHOE_EXHAUSTED');r.cursor++;claimant.hand.push(card);
-  const winner=claimRegistry.NEXT_HIT_SAFE.wins(claimant)?claimant:p,loser=winner===p?claimant:p;
-  settle(winner.account,id,offer.amount*2);settle(loser.account,id,0);
-  winner.bluffWins++;loser.bluffLosses++;
-  Object.assign(offer,{status:'accepted',challengerId:p.id,card,winnerId:winner.id,pot:offer.amount*2});
-  r.bluffOutcomes.push(structuredClone(offer));
-  if(!r.biggestBluff||(offer.pot??0)>(r.biggestBluff.pot??0))r.biggestBluff=structuredClone(offer);
+  offer.card=card;completeClaim(r,offer,{hand:structuredClone(claimant.hand)});
   r.phase='BLUFF_REVEAL';r.deadline=now+RULES.revealMs;r.decisionId=undefined;
 }
 

@@ -1,5 +1,7 @@
 import { type Card } from '@bluff-house/shared';
 import { evaluate } from './cards.js';
+import {available} from './ledger.js';
+import type {Room,Player} from './state.js';
 
 export interface Payout {
   returned: number;
@@ -31,4 +33,16 @@ export function dealerShouldHit(cards: Card[]): boolean {
 export function canOffer(hand: Card[]): boolean {
   const value = evaluate(hand);
   return hand.length >= 2 && !value.soft && value.total >= 12 && value.total <= 20;
+}
+
+export function doubleReason(r:Room,p:Player):string|null {
+  if(r.mode!=='PARTY'||!r.settings.doubleDown)return 'Ordinary Double Down is enabled only by the Party lobby setting.';
+  if(r.phase!=='PLAYER_TURN'||r.activePlayerId!==p.id||!p.participating||!p.connected||p.departed)return 'Wait for your ordinary Blackjack decision.';
+  if(p.doubled)return 'This hand has already doubled.';
+  if(p.hand.length!==2||evaluate(p.hand).natural||p.status!=='playing')return 'Double only an initial non-natural two-card hand before hitting.';
+  if(p.bluffUsed)return 'Double before making any Call My Bluff offer.';
+  if(p.chaosAffected||r.party?.chaos.multipliers[p.id])return 'Double before any Chaos involvement; multipliers cannot stack.';
+  if(!p.wagerId||p.wager<50||p.wager>250||p.account.escrows[p.wagerId]!==p.wager)return 'Double requires your funded original Blackjack wager.';
+  if(available(p.account)<p.wager)return 'You need one equal extra stake available to double.';
+  return null;
 }

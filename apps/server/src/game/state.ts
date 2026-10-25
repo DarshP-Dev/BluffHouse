@@ -7,7 +7,10 @@ export interface Player {
   disconnectedAt:number|null; account:Account; hand:Card[]; status:string; wager:number; wagerId?:string;
   participating:boolean; bluffUsed:boolean; bluffWins:number; bluffLosses:number;
   profile:ProfileState;matchStats:MatchStats;
+  doubled:boolean;chaosAffected:boolean;
 }
+export interface BluffState extends BluffView {acceptedOrder?:number;proof?:{hand:Card[];dealer?:Card[]}}
+export interface PendingClaimState extends BluffState {lockedHands:Record<string,Card[]>}
 export interface ProfileState {initials:string;color:ProfileColor;badges:EarnedBadge[];acceptedBluffWins:number;matchProgress:{matchId:string|null;bottomTwo:boolean;bottomRoundId:string|null;lastSettledRoundId:string|null}}
 export interface Room {
   mode:GameMode; roundLimit:3|6; finaleEnabled:boolean;visibility:'PRIVATE'|'PUBLIC';settings:RoomSettings;party:PartyState|null; roundPayouts:RoundPayout[];
@@ -15,7 +18,7 @@ export interface Room {
   matchId?:string; roundId?:string; round:number; initialChips:number; dealerNet:number;
   shoe:Card[]; cursor:number; dealer:Card[]; dealerRevealed:boolean; discarded:Card[];
   deadline:number|null; decisionId?:string; bettingId?:string; activePlayerId?:string;
-  bluff:BluffView|null; pausedRemaining:number; biggestBluff:BluffView|null; bluffOutcomes:BluffView[];
+  bluff:BluffState|null; pausedRemaining:number; biggestBluff:BluffView|null; bluffOutcomes:BluffState[];pendingClaims:PendingClaimState[];
   events:TableEvent[]; results:MatchResults|null; recoveryDeadline:number|null; terminationConfirmed:boolean;
   chat:ChatMessage[];chatRates:Record<string,number[]>;
   hostDeadline:number|null; emptySince:number|null; resultsSince:number|null;
