@@ -6,7 +6,17 @@ Verified Slice 17 implementation milestone: `2bcda22`.
 
 Slices 1–15 are implemented, verified and committed. Slice 16's conditional evaluation is complete with voice unavailable; microphone/signaling/mesh support is not represented as delivered. Slice 17 implementation and mechanical verification are complete, ready for the required final user exploration. Approved planning and the Classic user checkpoint are preserved.
 
-## Final verification
+## Reference-screen refinement — October 25
+
+The learner's four supplied screenshots now guide the interactive lounge, lobby, sealed House auction and gameplay dashboard. New locally bundled artwork, a transparent golden wordmark, navy framed panels, glossy controls and animal-style color cosmetics replace the earlier muted appearance. Game rules and server projections remain unchanged. Actual rival hands remain available below the main action area; live Party decisions take priority. Sidebar navigation opens real content or explains current availability. A persistent chat portal preserves the composer/history DOM, draft, focus and reading state across layout changes.
+
+Final refinement checks: `npm run typecheck`, production build, **852 unit/integration tests / 40 files**, and the full **47-browser-test suite (4.5 minutes)** passed. The new real four-player flow checks all four layouts at 1672×941 and 390×844, loaded artwork, no horizontal overflow, desktop action placement, mobile Hit, sealed bids then reveal, menu/feature navigation, persistent chat identity/focus/draft and a funded desktop bluff acceptance. Initial presentation regressions in auction funds, own badge visibility and rules naming were repaired; seven affected browser tests passed before the final complete clean run. Earlier sandbox loopback restrictions were resolved through authorized local test networking.
+
+Inspected the four desktop/mobile screenshots and the live-challenge desktop capture. After a final desktop-only logo alignment adjustment, a fresh build and the reference journey passed again (**1 test**). Regenerate the captures with `npm run test:e2e -- tests/e2e/reference-design.spec.ts`; output lives under ignored `test-results/reference-*.png`. Asset paths and the final built-in image-generation prompts are in `docs/ui-artwork.md`. The actual compiled `npm start` preview is running at localhost:3000; health, HTML and all three PNG assets returned HTTP 200. The earlier real-clock production smoke was not repeated because this revision changes presentation only.
+
+The approved checklist records implementation evidence while leaving the agreed visual retry, final user approval, physical second-device LAN check and learning wrap-up/app map pending. No deployment or purchase occurred. Approved planning, existing commits/tests and the separate Slice 1 worktree are preserved.
+
+## Slice 17 verification
 
 | Command/check | Actual result |
 | --- | --- |

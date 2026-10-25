@@ -65,6 +65,8 @@ Source: `scope.md > The Core Loop`, `Inspiration & Identity`, and `What "Working
 
 Source: `scope.md > Inspiration & Identity`.
 
+October 25 final-review visual direction, explicitly requested by the learner: match the supplied Game Lounge, Lobby, House Auction Interface and Blackjack Dashboard references. Use a colorful illustrated lounge, oversized gold Bluffhouse branding with “PLAY BOLDER TOGETHER,” dark navy framed panels and glossy colored actions. The lobby separates avatar/roster/settings; the auction uses a royal purple/gold stage while preserving sealed bids; gameplay presents the table between system and standings/chat rails. These references supersede the earlier muted treatment and tagline below. Every name, balance, state and available action must remain truthful to the implemented game; illustrative reference numbers and mechanics are not feature requests.
+
 - Premium underground casino atmosphere: black and charcoal backgrounds, deep burgundy red, metallic gold accents, subtle lighting, and a luxurious Blackjack table.
 - Gold emphasizes important information and winnings; deep red emphasizes danger, losses, and bluff challenges. Keep text, game controls, and stakes clearly readable.
 - Large distinctive logo, distinctive typography, polished menus, smooth button interactions, and consistent styling across menu, lobby, table, and results. No particular font or reference product has been chosen.

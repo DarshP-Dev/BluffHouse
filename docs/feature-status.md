@@ -13,11 +13,13 @@ This describes the running code. Final hands-on review and deployment are separa
 | Deals | Funded hidden Split/Steal choices, disclosed timeout defaults, finite cooperation bonuses | One accepted contract per pair per match |
 | Vault | Private Shadow Draw, claims/calls/reveals, scores, ties and funded awards | Early/disabled/unavailable finales use the documented fallback |
 | Extra Blackjack | Ordinary Double Down, exact-21 immediate claim, three delayed dealer-result claims | Party switches; shared offer allowance and funded protected obligations |
-| Profiles/social | Plain-text chat, avatar initials/colors, detailed match statistics, eight event-derived badges | In-memory guest lifetime; no durable accounts/inventory |
+| Profiles/social | Plain-text chat, avatar initials/colors with color-matched animal mascots, detailed match statistics, eight event-derived badges | In-memory guest lifetime; no durable accounts/inventory |
 | Quick Play | Compatible public join/create, safe name collisions, existing membership restoration | Excludes private/full/active/custom tables; never moves a current member |
 | Voice | Unavailable | Conditional evaluation complete; synthetic local RTP is not real-device/internet verification |
 
 The server owns cards, randomness, funds, clocks and outcomes. Accepted obligations survive departure and settle once before results. Restarting the sole server process loses rooms and guest sessions. No database, horizontal scaling, durable recovery, cross-device guest identity, lifetime board, real-money mechanism or spectator betting is delivered.
+
+The learner's four visual references guide the lounge, lobby, sealed-auction and table layouts. Menu feature destinations explain the actual session-based systems; they do not fabricate global rankings or accounts. Desktop and phone controls display real game state, including private auction amounts only when authorized by the server projection. Artwork is bundled locally; see [artwork and prompts](ui-artwork.md).
 
 Initial Classic gameplay on one computer was approved by the learner. Physical second-device game LAN testing remains an additional pending task. Final integrated user exploration and the learning wrap-up/app map remain unchecked. No hosting has been provisioned or verified.
 
