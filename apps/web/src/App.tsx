@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { EMOJIS, RULES, validName, type Card, type ClaimType, type CoinSide, type DealView, type DuelGame, type DuelView, type Phase, type PlayerView, type ProfileColor, type RoomSettings, type RoomView } from '@bluff-house/shared';
+import { EMOJIS, RULES, VOICE_STATUS, validName, type Card, type ClaimType, type CoinSide, type DealView, type DuelGame, type DuelView, type Phase, type PlayerView, type ProfileColor, type RoomSettings, type RoomView } from '@bluff-house/shared';
 import { clearError, clearChatError, sendChat, enterRoom, getSnapshot, initializeConnection, returnToMenu, sendCommand, subscribe, type ConnectionState } from './connection';
 
 const chips = (value: number) => value.toLocaleString('en-CA');
@@ -40,7 +40,7 @@ function HowToPlay({ onClose }: { onClose: () => void }) {
       <section><span className="rule-number">13</span><h3>Find your table</h3><p>Quick Play joins or creates a public lobby matching Classic, three-round Party or six-round Party defaults. Private tables use invitation codes. The host can change public visibility, Party capacity and released systems before the match; any change clears readiness. House overthrow needs both House and duels; bounties need duels. Disabled systems do not appear during play. Settings stay locked until the match ends. Existing membership is restored rather than moved to a new table.</p></section>
       <section><span className="rule-number">14</span><h3>Double or declare</h3><p>When enabled in Party, Double Down matches your original Blackjack wager, draws exactly one card and stands. It requires an untouched, nonnatural two-card hand, before any bluff offer or Chaos action. Additional claims include an immediate exact-21 draw, or a promise to beat the dealer, win with at least three cards, or see the dealer bust. Delayed claims draw no card on acceptance: both stakes stay held until the real round result. A push loses either player-win claim. Dealer Bust depends only on the dealer, even if you bust. All claim types share the one-offer allowance and hard 12–20 requirement.</p></section>
     </div>
-    <p className="rule-note">Your seat follows this browser profile. Refresh to reconnect; use separate browser profiles or devices for different players.</p>
+    <p className="rule-note" aria-label="Room voice status">{VOICE_STATUS.message}</p><p className="rule-note">Your seat follows this browser profile. Refresh to reconnect; use separate browser profiles or devices for different players.</p>
     <button className="button primary full-width" onClick={onClose}>I'm in</button>
   </Modal>;
 }

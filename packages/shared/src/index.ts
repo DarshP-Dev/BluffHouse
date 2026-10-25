@@ -1,5 +1,6 @@
 export const RULES = { startingChips:1000, minBet:50, maxBet:250, maxPlayers:6, rounds:3, bettingMs:20000, decisionMs:20000, offerMs:8000, revealMs:2000, dealingMs:1000, dealerMs:350, resultMs:4000, recoveryMs:60000 } as const;
 export const EMOJIS = ['😂','😱','🔥','👀','💀','👑'] as const;
+export const VOICE_STATUS = {available:false,status:'CONNECTIVITY_UNVERIFIED',message:'Room voice is unavailable while device and network connectivity remain unverified. No microphone is requested.'} as const;
 export type Suit = 'S'|'H'|'D'|'C';
 export type Rank = 'A'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'|'10'|'J'|'Q'|'K';
 export interface Card { id:string; rank:Rank; suit:Suit }
