@@ -252,7 +252,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: Use Quick Play in independent profiles, observe a shared public lobby, and test host settings before starting a real match.
   Commit: `feat: add Quick Play and validated Party settings`
 
-- [ ] **15. Expand Blackjack actions and claim types without breaking Classic**
+- [x] **15. Expand Blackjack actions and claim types without breaking Classic**
   Becomes usable: Optional Party Double Down and additional funded immediate/deferred claims appear only when their full settlement path is verified.
   Why now: Depends on the mature rule/ledger/claim registry and Chaos protections. These are lower-priority rule expansions, after the requested House/social/Vault systems.
   PRD ref: `prd.md > Deferred From the POC`, `Call My Bluff Eligibility and Offer`; `roadmap.md > Future Call My Bluff Claims`; proposed optional Blackjack extension rules.
@@ -463,7 +463,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - Pending obligations protect both participants' complete card prefixes from Chaos movement/redraw. Settlement drains all matched pots before Chaos rankings/results and derives statistics/badges only from completed outcomes. Public projections whitelist pending/settled evidence and omit private proofs, hand locks and hidden dealer information. Biggest Bluff ties use funded acceptance order even when an earlier deferred pot settles after an immediate pot.
 - Required focused tests passed **83 tests / 5 files**; `npm test` passed **843 tests / 38 files**. Coverage includes funded/soft/bust doubles, rollback, no stacking, exact-21 truth/non-21/bust, deferred predicates, push/natural/dealer-bust cases, no acceptance draw or premature rewards, simultaneous records, expiry/stale/duplicate requests, protected hands, refresh/reconnect, both-party departure, early-ending drainage, earliest-pot ties and replay. A six-round mixed ledger verifies auction funding, ordinary doubling, a dealer-bust claim, separate commissions, cooperation bonuses, a duel, Vault shares and exact final balances.
 - Full typecheck and final production build passed. Combined `npm run test:e2e -- tests/e2e/claims.spec.ts tests/e2e/match.spec.ts tests/e2e/quick-play.spec.ts` passed **7 browser tests**. The three new four-guest journeys verify ordinary doubling, exact-21 truth/non-bust failure, three simultaneous deferred truths including a busted claimant, three false outcomes including pushes, private dealer projection, refresh, held escrow, exact balances/statistics, real payouts and replay. Strengthened balance/statistic assertions then passed a final **3-test** claim rerun. Both Classic bluff journeys and both Quick Play journeys remain passing.
-- Inspected 390px controls, pending and settled-claim screenshots; no overflow and no premature payout wording. Rebuilt after a final CSS border-token correction. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Next slice: conditional voice feasibility evaluation.
+- Inspected 390px controls, pending and settled-claim screenshots; no overflow and no premature payout wording. Rebuilt after a final CSS border-token correction. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Verified implementation commit: `6609315`. Next slice: conditional voice feasibility evaluation.
 
 ## Revisions
 
