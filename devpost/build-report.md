@@ -8,6 +8,8 @@ Slices 1–15 are implemented, verified and committed. Slice 16's conditional ev
 
 ## Reference-screen refinement — October 25
 
+Verified implementation milestone: `f2a4d1e` (`feat: match Bluff House UI to the illustrated casino references`).
+
 The learner's four supplied screenshots now guide the interactive lounge, lobby, sealed House auction and gameplay dashboard. New locally bundled artwork, a transparent golden wordmark, navy framed panels, glossy controls and animal-style color cosmetics replace the earlier muted appearance. Game rules and server projections remain unchanged. Actual rival hands remain available below the main action area; live Party decisions take priority. Sidebar navigation opens real content or explains current availability. A persistent chat portal preserves the composer/history DOM, draft, focus and reading state across layout changes.
 
 Final refinement checks: `npm run typecheck`, production build, **852 unit/integration tests / 40 files**, and the full **47-browser-test suite (4.5 minutes)** passed. The new real four-player flow checks all four layouts at 1672×941 and 390×844, loaded artwork, no horizontal overflow, desktop action placement, mobile Hit, sealed bids then reveal, menu/feature navigation, persistent chat identity/focus/draft and a funded desktop bluff acceptance. Initial presentation regressions in auction funds, own badge visibility and rules naming were repaired; seven affected browser tests passed before the final complete clean run. Earlier sandbox loopback restrictions were resolved through authorized local test networking.
