@@ -242,7 +242,7 @@ These resolve expansion decisions with the learner's explicit corrections and ap
   Learner check: Chat and react while a friend plays, edit a lobby avatar, then inspect a badge and the recorded event that earned it; verify the interface explains session-only persistence.
   Commit: `feat: add room chat profiles and session achievements`
 
-- [ ] **14. Find a public game and configure compatible Party settings**
+- [x] **14. Find a public game and configure compatible Party settings**
   Becomes usable: Quick Play finds/creates a compatible public lobby, and hosts choose only supported room and Party options before readiness.
   Why now: Depends on real released modes and lifecycle admission; avoids routing users into unavailable games or settings that strand funds.
   PRD ref: `prd.md > Private Rooms and Match Start`, `Deferred From the POC`; `roadmap.md > Retained Systems`; proposed platform/settings dependency rules.
@@ -454,7 +454,7 @@ Activity mode: Planned focused investigation or short live route, calibrated to 
 - Added complete host-only lobby settings with strict nested validation, occupied-seat capacity, readiness/context reset on actual changes, immutable active configuration and replay retention. Overthrow requires House and duels; bounties require duels. Classic keeps its original fixed configuration. Disabled systems reject commands, and disabled House retains real Party ledger/Vault accounting without an auction. Social admission is skipped when no enabled contest is currently eligible.
 - Required focused tests passed **48 tests / 3 files**, including nine concurrent authenticated Socket.IO guests filling two public tables at six and three seats, exact matching, duplicate membership/retries, collision names, negative settings, actual disabled gameplay, replay and sparse occupied seats after capacity reduction. `npm test` passed **789 tests / 35 files**, and `npm run typecheck` passed. Updated the existing Emergency Fund regression to follow the next eligible betting phase when an unfunded social interval is skipped; the real funded comeback remains verified.
 - Fresh production build and `npm run test:e2e -- tests/e2e/quick-play.spec.ts tests/e2e/match.spec.ts` passed **4 browser tests**. Actual guests match public presets, receive collision-safe names, exclude private/full/active/custom tables and restore membership on refresh. Six-round Party verifies host authority, dependencies without silent toggle changes, readiness reset, disabled gameplay panels, live Blackjack and retained settings after refresh. A six-guest lobby reduced to two still displays and plays original seats 0 and 5; the UI now renders occupied seats in order before empty padding. Both Classic bluff journeys remain passing.
-- Inspected the 390px settings layout; no overflow. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Next slice: optional Party Blackjack actions and immediate/deferred claims.
+- Inspected the 390px settings layout; no overflow. Physical second-device LAN verification remains pending. No deployment or purchase occurred. Verified implementation commit: `c528dfe`. Next slice: optional Party Blackjack actions and immediate/deferred claims.
 
 ## Revisions
 
