@@ -77,6 +77,18 @@ A genuine initial natural receives 3:2 only when it actually qualifies. An accep
 
 **Required tests:** initial and post-hit owner-only projection; masked bust/natural/status; zero-wager hands; repeated Hits and single budget; immediate and atomic draw-claims; false/truthful/uncalled claims; exactly-eight-second boundaries and simultaneous callers; truthful vindication without an unfunded transfer;depleted Vault correct-call reward;zero-chip and All-In free calls; wrong caller future truthful hand; dealer/casino outcomes; naturally qualified 3:2 vs false 21; no claims, ties/remainders and all-disqualified fallback; disconnect/departure/reconnect; pre/post-deal early close; full Vault/Bank/bonus/escrow conservation; duplicate command/settlement; badges/statistics and real multi-browser final reveal.
 
+## C. October26 approved dealer personal bet
+
+The learner explicitly approved a personal House bet against the other players' aggregate Blackjack result, with a mandatory stake whenever sufficient spendable chips exist. This supplements the one actual dealer hand; it does not create another casino opponent or bettor hand.
+
+- Minimum10 chips when at least10 are spendable; maximum is the House's exact spendable balance excluding its standing bond and all other commitments. The server automatically reserves10 when betting opens, including Shadow betting, and the House can edit it using the same additive chip tray before the deadline. Exact affordable All-In amounts may contain a whole-chip remainder. No withdrawal below the mandatory minimum. If spendable funds are below10, skip the extra bet without debt or crown forfeiture; the existing bond and finite Bank still back wagers.
+- Commit the reserved stake to a separate named escrow before any round cards are dealt. A legal in-window credit that makes the minimum affordable also triggers the required minimum. Dealer stake does not expand the table's admitted payout capacity: existing Bank-plus-bond backing remains the conservative limit.
+- Net result means losing bettor wagers minus winning bettor profits, excluding Vault awards and other side games. Net losses consume the dealer stake first, then the standing bond, then Bank cash. Return any unlost stake principal exactly once.
+- On net profit, restore any Bank shortfall first. From the eligible remaining profit, pay the House up to its chosen stake, then half the residual; the Bank receives the rest, including any odd chip. Existing House earnings restore its bond before becoming spendable. A net push returns the stake unchanged. Example with no Bank shortfall: stake100/net profit150 earns125; stake100/net loss60 returns40 principal and loses60.
+- Show the current personal bet and its reserved/committed state during play. At settlement show original stake, returned principal, stake loss, total House earnings and personal net, separately identifying any standing bond loss. Never count returned principal as profit or create unbacked credits. Preserve normal dealer decisions, hidden cards and every existing funded obligation through disconnect, role transfer, termination and replay.
+
+Implementation is the separate R8 milestone following the compact UI/request-alert checkpoint. Its changed financial rules require targeted accounting tests and multiplayer regression before committing.
+
 ## Implementation gates and next steps
 
 - R1–R3 implementation and verification are authorized now. Keep their remaining checks and human LAN retry accurate.

@@ -8,5 +8,6 @@ import './reference-theme.css';
 import './gameplay-revision.css';
 import './house-dealer.css';
 import './shadow-blackjack.css';
+import './compact-social.css';
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

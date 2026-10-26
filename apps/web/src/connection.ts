@@ -29,7 +29,7 @@ export const getSnapshot = () => state;
 export const clearError = () => publish({ error: null });
 export const clearChatError = () => publish({ chatError: null });
 
-/** Credentials remain in the server-issued HttpOnly cookie. Nothing is stored in localStorage. */
+/** Credentials remain in the server-issued HttpOnly cookie; UI sound preferences store no credentials. */
 export async function initializeConnection() {
   if (initialized) return;
   initialized = true;

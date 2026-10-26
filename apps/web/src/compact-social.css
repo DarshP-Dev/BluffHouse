@@ -1,0 +1,45 @@
+/* Keep the live sidebar focused on its four playable systems. Full accounting lives in results. */
+.gameplay-vault { display:block; margin-top:5px; color:#c2d1eb; font-size:11px; line-height:1.3; }
+.gameplay-vault strong { color:#ffe099; font-variant-numeric:tabular-nums; }
+.contextual-panels .compact-deal-panel { padding:16px; }
+.compact-deal-panel>.duel-heading { align-items:center; margin-bottom:13px; gap:12px; }
+.compact-deal-panel>.duel-heading>h2 { font:750 21px/1.25 var(--sans); color:#ffe1a2; margin:0; }
+.compact-deal-panel .countdown { margin:0; }
+.compact-deal-panel .deal-offer-controls { display:grid; grid-template-columns:minmax(135px,1fr) minmax(220px,1.4fr); gap:12px 16px; align-items:end; margin:0; }
+.compact-deal-panel .deal-offer-controls>label,.deal-contribution-selector>span { display:block; color:#c7d8f1; font-size:11px; line-height:1.4; }
+.compact-deal-panel .deal-offer-controls select { min-height:44px; margin-top:6px; padding:9px 11px; border:1px solid #4f709e; border-radius:9px; background:#061428; color:#eef4ff; font-size:13px; }
+.deal-contribution-selector { min-width:0; }
+.compact-deal-panel .deal-contribution-selector .bet-chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:6px; justify-content:flex-start; }
+.compact-deal-panel .deal-contribution-selector .bet-chip { width:40px; height:40px; min-height:40px; flex-shrink:0; font-size:12px; }
+.compact-deal-panel .deal-offer-controls>.button { grid-column:1/-1; min-height:47px; justify-content:center; padding:10px 13px; font-size:16px; gap:15px; }
+.compact-deal-panel .deal-offer-controls>.deal-offer-reason { grid-column:1/-1; margin:0; font-size:11px; line-height:1.4; color:#ebc78c; }
+.compact-deal-panel .deal-outgoing { display:flex; align-items:center; justify-content:space-between; gap:15px; margin:0; padding:12px; border:1px solid #536b8d; background:#14263c; color:#c9d8ed; font-size:12px; line-height:1.5; }
+.compact-deal-panel .deal-incoming { margin:0 0 14px; padding:13px; background:#0a1e35; border:1px solid #9a7c3d; border-radius:11px; }
+.compact-deal-panel .deal-incoming h3 { font:750 17px/1.3 var(--sans); color:#ffe2a4; }
+.compact-deal-panel .deal-acceptance-terms { font-size:12px; line-height:1.5; margin:10px 0; }
+.deal-outcome-terms { display:block; color:#afc4e2; font-size:11px; line-height:1.5; }
+.compact-deal-panel .dialog-actions { gap:9px; margin-top:12px; flex-wrap:wrap; }
+.compact-deal-panel .dialog-actions>.button { min-height:44px; padding:9px 15px; font-size:13px; }
+.compact-deal-panel .deal-matchup { margin:0 0 9px; font-size:13px !important; line-height:1.5; color:#d3e1f7 !important; }
+.compact-deal-panel .deal-choice-disclosure { margin:0 0 7px; font-size:12px; line-height:1.5; color:#dfcfab; }
+.compact-deal-panel .deal-locks { gap:10px; padding:10px; margin-top:11px; background:#07162a; color:#b5c9e7; }
+.compact-deal-panel .deal-choices { gap:10px; margin:12px 0 0; }
+.compact-deal-panel .deal-choices>.button { min-height:49px; font-size:17px; }
+.compact-deal-panel .deal-private { margin:10px 0 0; font-size:11px; line-height:1.5; }
+.compact-deal-panel .deal-reveal { padding:13px; }
+.compact-deal-panel .deal-reveal>h3 { font:750 19px/1.4 var(--sans); }
+.compact-deal-panel .deal-reveal>p { margin:11px 0 0; font-size:12px; }
+.compact-deal-panel .deal-revealed-choices>div { gap:10px; padding:10px 0; font-size:12px; flex-wrap:wrap; }
+@media (max-width:1200px) {
+ .compact-deal-panel .deal-offer-controls { grid-template-columns:minmax(0,1fr); gap:11px; }
+ .compact-deal-panel .deal-contribution-selector .bet-chips { gap:9px; }
+}
+@media (max-width:700px) {
+ .gameplay-vault { font-size:9px; margin-top:4px; }
+ .contextual-panels .compact-deal-panel { padding:14px 12px; }
+ .compact-deal-panel>.duel-heading>h2 { font-size:20px; }
+ .compact-deal-panel .deal-contribution-selector .bet-chip { width:44px; height:44px; min-height:44px; }
+ .compact-deal-panel .deal-outgoing { gap:10px; }
+ .compact-deal-panel .deal-incoming>.duel-heading { align-items:center; gap:8px; }
+ .compact-deal-panel .deal-incoming h3 { font-size:15px; }
+}

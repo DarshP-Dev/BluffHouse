@@ -35,7 +35,7 @@ test('a900 bid leaves a real dealer who covers simultaneous All-In naturals from
   expect(view.players[0]).toMatchObject({balance:100,reserved:100,available:0,wager:0});
   expect(view.party!.bank).toMatchObject({initial:8000,balance:8000,bond:{ownerId:view.players[0].id,amount:100}});
   await expect(pages[0].getByRole('button',{name:/^Place Bet/})).toHaveCount(0);
-  await expect(pages[0].getByRole('region',{name:'Dealer bankroll',exact:true})).toContainText('8,000');
+  await expect(pages[0].getByRole('region',{name:'Dealer bankroll',exact:true})).toHaveCount(0);
   table.server.manager.e.shoe=()=>scriptedShoe(['A','A','A','10','K','K','K','6','5']);
   for(const page of pages.slice(1)){
     await page.getByRole('button',{name:'All-In',exact:true}).click();
@@ -103,6 +103,7 @@ test('the player dealer may stand to earn losing wagers and may legally hit a hi
   expect(table.view(code).party!.bank.rounds[1]).toMatchObject({net:-100,bondLoss:100,bankLoss:0});
   table.advance(4000);
   await expect(pages[0].getByRole('button',{name:/^Return to Lobby/})).toBeVisible();
+  await expect(pages[0].getByRole('region',{name:'Dealer bankroll',exact:true})).toBeVisible();
   expect(table.view(code).players.every(player=>player.reserved===0&&player.committed===0)).toBe(true);
   await pages[0].getByRole('button',{name:/^Return to Lobby/}).click();
   expect(table.view(code).party).toBeNull();
