@@ -124,7 +124,7 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
     case 'DEALER_TURN': {if(r.party)r.party.bank.dealerAutomated=true;r.activePlayerId=undefined;r.decisionId=undefined;r.dealerRevealed=true;if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
     case 'ROUND_RESULT': roundBoundary(r,e,at);break;
     case 'DEAL': dealsDeadline(r,e,at);break;
-    case 'SHADOW_DRAW':case 'SHADOW_CLAIM':case 'SHADOW_CHALLENGE':case 'SHADOW_RESULT': if(shadowDeadline(r,e,at))results(r,e,at);break;
+    case 'SHADOW_BETTING':case 'SHADOW_TURN':case 'SHADOW_CHALLENGE':case 'SHADOW_RESULT': if(shadowDeadline(r,e,at))results(r,e,at);break;
     case 'SOCIAL':case 'LAST_STAND_CHOICE':case 'DUEL':case 'DUEL_RESULT':case 'DEAL_RESULT': if(socialDeadline(r,e,at)){closeSocial(r);roundBoundary(r,e,at);}break;
     default: requireRule(false,'INVALID_PHASE_DEADLINE');
   }
@@ -137,7 +137,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
   if(c.type==='house:bid')requireRule(r.settings.house,'HOUSE_DISABLED','The House auction is disabled for this match.');
   if(c.type==='house:ballot'||c.type==='house:vote'||c.type==='house:choose')requireRule(r.settings.overthrow,'OVERTHROW_DISABLED','House overthrow is disabled for this match.');
   switch(c.type){
-    case 'shadow:draw':case 'shadow:stand':case 'shadow:claim':case 'shadow:pass':case 'shadow:reveal':case 'shadow:challenge':shadowCommand(r,p,c,e,now);break;
+    case 'shadow:draw':case 'shadow:drawclaim':case 'shadow:stand':case 'shadow:claim':case 'shadow:pass':case 'shadow:reveal':case 'shadow:challenge':shadowCommand(r,p,c,e,now);break;
     case 'deal:offer':case 'deal:accept':case 'deal:reject':case 'deal:choose':dealCommand(r,p,c,e,now);break;
     case 'bounty:contribute':case 'bounty:invite':bountyCommand(r,p,c,e,now);break;
     case 'chaos:activate':case 'chaos:optin':chaosCommand(r,p,c,e,now);break;
@@ -151,8 +151,8 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
       else {const winner=r.players.find(p=>p.id===r.bluff!.winnerId)!;addEvent(r,e,'bluff',`${winner.name} wins the ${r.bluff!.pot}-chip bluff pot (+${r.bluff!.amount} net).`,now,winner.id);}break;
     }
     case 'bet:submit': case 'bet:withdraw': {
-      requireRule(r.phase==='BETTING'&&c.bettingId===r.bettingId,'STALE_BETTING','Betting is closed or this round has changed.');
-      requireRule(p.participating,'NOT_PARTICIPATING');requireRule(!isHouse(r,p),'HOUSE_CANNOT_BET','The House plays the dealer hand.');
+      requireRule((r.phase==='BETTING'||r.phase==='SHADOW_BETTING')&&c.bettingId===r.bettingId,'STALE_BETTING','Betting is closed or this round has changed.');
+      requireRule(p.participating,'NOT_PARTICIPATING');if(r.phase==='SHADOW_BETTING')requireRule(!r.terminationConfirmed&&r.party?.shadow?.entries.some(entry=>entry.playerId===p.id),'SHADOW_BETTING_CLOSED');requireRule(!isHouse(r,p),'HOUSE_CANNOT_BET','The House plays the dealer hand.');
       clearWagerEffect(r,p);
       if(c.type==='bet:submit'){const amount=c.payload?.amount;requireRule(validBetAmount(amount),'INVALID_AMOUNT','Choose a positive whole-chip wager you can fund.');const id=p.wagerId??`${r.roundId}:${p.id}:blackjack`;reserveLiability(r,p,amount);reserve(p.account,id,amount);p.wagerId=id;p.wager=amount;}
       else {releaseLiability(r,p);if(p.wagerId)release(p.account,p.wagerId);p.wager=0;p.wagerId=undefined;}

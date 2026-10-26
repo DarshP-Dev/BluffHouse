@@ -18,7 +18,7 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   for(let i=1;i<4;i++)await table.join(pages[i],code,['','Blair','Casey','Drew'][i]);
   await pages[0].getByRole('button',{name:'Party',exact:true}).click();
   await pages[0].getByRole('button',{name:'6 rounds',exact:true}).click();
-  await expect(pages[0].getByRole('checkbox',{name:'Shadow Draw finale',exact:true})).toBeChecked();
+  await expect(pages[0].getByRole('checkbox',{name:'Shadow Blackjack finale',exact:true})).toBeChecked();
   for(const page of pages)await page.getByRole('button',{name:'Ready Up',exact:true}).click();
   await pages[0].getByRole('button',{name:'Start Game',exact:true}).click();
   const ids=table.view(code).players.map(player=>player.id),matchId=table.view(code).matchId;
@@ -96,22 +96,20 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   // Later rounds are deliberately sat out: no invented bankrolls or injected cards.
   table.server.manager.e.shoe=()=>scriptedShoe(['10','10','10','10','9','8','7','6','10']);
   const rounds=new Set<number>([1,2]);
-  for(let step=0;step<40&&table.view(code).phase!=='SHADOW_DRAW';step++){
+  for(let step=0;step<40&&table.view(code).phase!=='SHADOW_BETTING';step++){
     const state=table.view(code);rounds.add(state.round);expect(state.deadline).not.toBeNull();table.advance(state.deadline!-state.serverTime);conserved();
   }
   expect([...rounds].sort()).toEqual([1,2,3,4,5,6]);
-  expect(table.view(code)).toMatchObject({phase:'SHADOW_DRAW',round:6});
+  expect(table.view(code)).toMatchObject({phase:'SHADOW_BETTING',round:6});
   expect(table.view(code).party!.shadow!.pot).toBe(200);
-  await pages[0].getByRole('button',{name:'Take Shadow Draw',exact:true}).click();
-  for(const page of pages.slice(1))await page.getByRole('button',{name:'Stand and Lock',exact:true}).click();
-  await expect(pages[0].getByLabel('Shadow hand for Alex',{exact:true})).toContainText('Real total 29 · bust');
-  for(const viewer of ids.slice(1)){const entry=table.server.manager.snapshot(viewer)!.party!.shadow!.entrants[0];expect(entry.hand).toEqual([null,null,null]);expect(entry.value).toBeNull();expect(entry).not.toHaveProperty('disqualified');}
-  await pages[0].getByRole('combobox',{name:'Declared total',exact:true}).selectOption('21');
-  await pages[0].getByRole('button',{name:'Declare 21',exact:true}).click();
-  await expect(pages[1].getByLabel('Open Shadow claim')).toContainText('Alex declares 21');
+  table.advance(20000);
+  await pages[0].getByRole('button',{name:'Draw & Claim 21',exact:true}).click();
+  await expect(pages[0].getByLabel('Shadow hand for Alex',{exact:true})).toContainText('29');
+  for(const viewer of ids.slice(1)){const entry=table.server.manager.snapshot(viewer)!.party!.shadow!.entrants[0];expect(entry.hand[0]).not.toBeNull();expect(entry.hand.slice(1)).toEqual([null,null]);expect(entry.value).toBeNull();expect(entry.acceptedBluff).toBeNull();}
+  await expect(pages[1].getByLabel('Open Shadow claim')).toContainText('Alex');
   expect(table.server.manager.snapshot(ids[1])!.party!.shadow!.claim).not.toHaveProperty('truthful');
   table.advance(8000);
-  for(const page of pages.slice(1))await page.getByRole('button',{name:'Pass Declaration',exact:true}).click();
+  for(const page of pages.slice(1))await page.getByRole('button',{name:'Declare True Total',exact:true}).click();
   expect(table.view(code).party!.shadow).toMatchObject({winnerIds:[ids[0]],awards:[{playerId:ids[0],amount:200}],vaultThiefIds:[ids[0]]});conserved();
   table.advance(2000);
   await expect(pages[0].getByRole('button',{name:'Return to Lobby',exact:false})).toBeVisible();
@@ -125,7 +123,7 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   expect(final.party).toMatchObject({vault:0,bonusReserve:400});
   expect(final.party!.dealHistory).toHaveLength(1);expect(final.party!.duelHistory).toHaveLength(1);
   expect(final.players.every(p=>p.committed===0&&p.reserved===0)).toBe(true);conserved();
-  await pages[0].reload();await expect(pages[0].locator('.shadow-settlement')).toContainText('+200 chips');
+  await pages[0].reload();await expect(pages[0].locator('.shadow-settlement')).toContainText('+200 Vault chips');
   expect(table.view(code).players.map(p=>p.balance)).toEqual(final.players.map(p=>p.balance));
   await pages[0].getByRole('button',{name:'Return to Lobby',exact:false}).click();
   expect(table.view(code)).toMatchObject({phase:'LOBBY',roundLimit:6,finaleEnabled:true,party:null,pendingClaims:[],claimOutcomes:[]});

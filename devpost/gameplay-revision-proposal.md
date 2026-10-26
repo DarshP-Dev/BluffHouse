@@ -1,6 +1,6 @@
 # House dealer and Shadow Blackjack — approved revision rules
 
-Status: **Section A approved by the learner October 25; Section B (free calls) explicitly approved October 25. R4 is implemented and mechanically verified; R5 is not implemented yet**. The learner explicitly approved A's finite Bank, capped personal bond, bond-first losses and 50% eligible dealer earnings. B's mandatory call bond was rejected, then the revised free-call rules were explicitly approved. Zero-chip calls are required. R1–R3 continue independently. Historical commit `7084f9e` and all 17 original slices remain intact. Existing House and Shadow settlement stays active until these replacements are approved and verified.
+Status: **Sections A and B explicitly approved October25. R1–R5 are implemented and mechanically verified**. The learner approved A's finite Bank, capped personal bond, bond-first losses and50% eligible dealer earnings. B's mandatory call bond was rejected, then the revised free-call rules were explicitly approved. Zero-chip calls are required. Historical commit `7084f9e` and all17 original slices remain intact; `3e964f7` preserves the separately verified House dealer with the earlier finale. Final learner review and physical second-device LAN verification remain pending. Integrated evidence:931 server tests,58 browser tests, TypeScript/build and real-clock compiled Shadow smoke pass; see `checklist.md`.
 
 ## A. House bankroll and dealer gameplay
 

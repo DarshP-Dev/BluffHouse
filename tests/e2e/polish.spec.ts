@@ -160,7 +160,7 @@ test('mobile incoming deals and private choices stay below the stable table and 
   expect(errors).toEqual([]);
 });
 
-test('mobile Shadow Draw shows the viewer hand and legal choice before every other hand and keeps replay reachable', async ({ table }) => {
+test('mobile Shadow Blackjack keeps owner-private table hands and legal decisions reachable through replay', async ({ table }) => {
   const { pages, code, errors } = await friends(table);
   await pages[0].getByRole('button', { name: 'Party', exact: true }).click();
   for (const page of pages) await page.getByRole('button', { name: 'Ready Up', exact: true }).click();
@@ -172,22 +172,21 @@ test('mobile Shadow Draw shows the viewer hand and legal choice before every oth
   table.advance(44000);
   table.server.manager.e.shoe = () => scriptedShoe(['10', '10', '10', '10', '9', '8', '7', '6']);
   table.advance(24000);
-  for (let i = 0; i < 4; i++) {
+  expect(table.view(code).phase).toBe('SHADOW_BETTING');
+  table.advance(20000);
+  // Bettors act in seat order, followed by the one House dealer hand.
+  for (const i of [1, 2, 3, 0]) {
     const page = pages[i];
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByRole('heading', { name: 'Shadow Draw', exact: true })).toBeVisible();
-    await decisionReachable(page, page.getByRole('button', { name: 'Stand and Lock', exact: true }));
+    await expect(page.getByRole('heading', { name: 'Shadow Blackjack', exact: true })).toBeVisible();
+    await decisionReachable(page, page.getByRole('button', { name: 'Declare True Total', exact: true }));
     const hand = page.getByLabel(`Shadow hand for ${['Alex', 'Blair', 'Casey', 'Drew'][i]}`, { exact: true });
     await expect(hand).toHaveCount(1);
     await expect(hand.locator('.playing-card:not(.card-hidden)')).toHaveCount(2);
-    const firstOtherHand = page.locator('.shadow-hands .shadow-entry').first();
-    const handBox = await hand.boundingBox();
-    const otherBox = await firstOtherHand.boundingBox();
-    expect(handBox!.y + handBox!.height).toBeLessThanOrEqual(otherBox!.y);
+    expect(await hand.evaluate(element => !!element.closest('.felt-table'))).toBe(true);
     if (i === 0) await page.screenshot({ path: 'test-results/polish-shadow-mobile.png', fullPage: false });
-    await page.getByRole('button', { name: 'Stand and Lock', exact: true }).click();
+    await page.getByRole('button', { name: 'Declare True Total', exact: true }).click();
   }
-  for (const page of pages) await page.getByRole('button', { name: 'Pass Declaration', exact: true }).click();
   table.advance(2000);
   await expect(pages[0].getByRole('button', { name: /^Return to Lobby/ })).toBeVisible();
   await decisionReachable(pages[0], pages[0].getByRole('button', { name: /^Return to Lobby/ }));

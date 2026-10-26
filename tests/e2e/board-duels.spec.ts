@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures/browser.js';
+import { test, expect, finishShadowTimeouts } from '../fixtures/browser.js';
 import type { Page } from '@playwright/test';
 import type { TableFixture } from '../fixtures/browser.js';
 
@@ -104,6 +104,7 @@ test('four guests see identical Connect 4 and chess boards, reconnect, and settl
   table.advance(2000);
   await expect(pages[0].getByRole('heading', { name: 'Place your bets', exact: true })).toBeVisible();
   table.advance(24000);
+  finishShadowTimeouts(table,code);
   await expect.poll(() => table.view(code).phase).toBe('RESULTS');
   expect(table.view(code).players.reduce((sum, player) => sum + player.balance, 0)).toBe(4000);
   expect(errors).toEqual([]);

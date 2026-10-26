@@ -7,5 +7,6 @@ import './styles.css';
 import './reference-theme.css';
 import './gameplay-revision.css';
 import './house-dealer.css';
+import './shadow-blackjack.css';
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

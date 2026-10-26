@@ -1,4 +1,4 @@
-import { test, expect, type TableFixture } from '../fixtures/browser.js';
+import { test, expect, finishShadowTimeouts, type TableFixture } from '../fixtures/browser.js';
 import type { Page } from '@playwright/test';
 
 async function sixRoundParty(table: TableFixture) {
@@ -102,6 +102,7 @@ test('six-round Party pays three bounty defenses, allows two sequential contests
   table.advance(44000);
   await expect.poll(() => table.view(code).round).toBe(6);
   table.advance(24000);
+  finishShadowTimeouts(table,code);
   await expect.poll(() => table.view(code).phase).toBe('RESULTS');
   expect(table.view(code).players.map(player => player.balance)).toEqual([650, 1350, 950, 1050]);
   expect(table.view(code).players.every(player => player.committed === 0 && player.reserved === 0)).toBe(true);

@@ -8,7 +8,7 @@ async function party(table: TableFixture, count = 4, sixRounds = false) {
   for (let i = 1; i < pages.length; i++) await table.join(pages[i], code, ['', 'Blair', 'Casey', 'Drew'][i]);
   await pages[0].getByRole('button', { name: 'Party', exact: true }).click();
   if (sixRounds) await pages[0].getByRole('button', { name: '6 rounds', exact: true }).click();
-  const finale = pages[0].getByRole('checkbox', { name: 'Shadow Draw finale', exact: true });
+  const finale = pages[0].getByRole('checkbox', { name: 'Shadow Blackjack finale', exact: true });
   if (await finale.isChecked()) {
     await finale.click();
     await expect(finale).not.toBeChecked();

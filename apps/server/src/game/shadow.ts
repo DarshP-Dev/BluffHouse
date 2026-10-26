@@ -1,122 +1,79 @@
-import type {Command,ShadowClaim,ShadowView} from '@bluff-house/shared';
-import {validBondReservation} from './house-bank.js';
+import type {Command,ShadowClaim,ShadowView,ShadowEntrantView} from '@bluff-house/shared';
+import {available,commit,credit,release,settle} from './ledger.js';
+import {validBondReservation,commitLiability,releaseLiability,settleBankRound} from './house-bank.js';
 import {evaluate} from './cards.js';
-import {shadowScoring,shadowWinners,settleShadowVault,shadowVaultThieves} from './vault.js';
-import {requireRule,type Room,type Player,type EngineOptions,type ShadowState} from './state.js';
+import {resetChaosRound} from './chaos.js';
+import {effectiveTotal,shadowPayout,settleShadowVault} from './vault.js';
+import {requireRule,type Room,type Player,type EngineOptions,type ShadowState,type ShadowEntryState} from './state.js';
 
-const DECISION_MS=10000,CHALLENGE_MS=8000,RESULT_MS=2000;
-function event(r:Room,e:EngineOptions,text:string,at:number,playerId?:string){r.events.push({id:e.id(),kind:'shadow',text,at,playerId,revision:r.revision+1});r.events=r.events.slice(-60);}
-function entry(r:Room,id:string){const p=r.party!.shadow!.entries.find(p=>p.playerId===id);requireRule(p,'NOT_SHADOW_ENTRANT','Only the frozen Shadow Draw entrants can act.');return p;}
-function name(r:Room,id:string){return r.players.find(p=>p.id===id)!.name;}
-function draw(shadow:ShadowState){const card=shadow.shoe[shadow.cursor];requireRule(card,'SHADOW_SHOE_EXHAUSTED');shadow.cursor++;return card;}
-function nextClaim(r:Room,e:EngineOptions,now:number){
-  const shadow=r.party!.shadow!,next=shadow.entries.find(p=>!p.claimDone);
-  if(!next){settleShadowVault(r,e,now);r.phase='SHADOW_RESULT';shadow.deadline=now+RESULT_MS;r.deadline=shadow.deadline;return;}
-  shadow.status='claiming';shadow.activePlayerId=next.playerId;shadow.decisionId=e.id();shadow.deadline=now+DECISION_MS;
-  r.phase='SHADOW_CLAIM';r.deadline=shadow.deadline;
+const CHALLENGE_MS=8000,RESULT_MS=2000;
+function event(r:Room,e:EngineOptions,text:string,now:number,id?:string){r.events.push({id:e.id(),kind:'shadow',text,at:now,playerId:id,revision:r.revision+1});r.events=r.events.slice(-60);}
+function makeEntry(id:string,seat:number,role:ShadowEntryState['role'],e:EngineOptions):ShadowEntryState{return {handId:e.id(),playerId:id,seat,role,hand:[],locked:false,revealed:false,claimUsed:false,callUsed:false,forcedTruth:false,disqualifiedReason:null,effectiveTotal:null,acceptedBluff:false,turnDeadline:null};}
+function getEntry(r:Room,id:string){const entry=r.party!.shadow!.entries.find(item=>item.playerId===id);requireRule(entry,'NOT_SHADOW_ENTRANT');return entry;}
+function draw(s:ShadowState){const card=s.shoe[s.cursor];requireRule(card,'SHADOW_SHOE_EXHAUSTED');s.cursor++;return card;}
+function trueStand(entry:ShadowEntryState){entry.effectiveTotal=evaluate(entry.hand).total;entry.locked=true;entry.revealed=true;}
+function autoDealer(s:ShadowState){while(evaluate(s.dealer.hand).total<17)s.dealer.hand.push(draw(s));trueStand(s.dealer);}
+function finish(r:Room,e:EngineOptions,now:number){const s=r.party!.shadow!;if(s.finalized)return;
+  for(const entry of s.entries.filter(item=>item.role==='BETTOR')){const p=r.players.find(p=>p.id===entry.playerId)!;if(!p.wagerId||!p.wager)continue;const result=shadowPayout(entry,s.dealer,p.wager);requireRule(settle(p.account,p.wagerId,result.returned),'DUPLICATE_SHADOW_WAGER');r.roundPayouts.push({playerId:p.id,stake:p.wager,returned:result.returned,profit:result.profit,houseCommission:0});}
+  settleBankRound(r,r.roundPayouts.reduce((n,p)=>n+Math.max(0,-p.profit),0),r.roundPayouts.reduce((n,p)=>n+Math.max(0,p.profit),0));
+  settleShadowVault(r,e,now);r.phase='SHADOW_RESULT';s.deadline=now+RESULT_MS;r.deadline=s.deadline;r.activePlayerId=undefined;r.decisionId=undefined;
 }
-function nextDraw(r:Room,e:EngineOptions,now:number){
-  const shadow=r.party!.shadow!,next=shadow.entries.find(p=>!p.locked);
-  if(!next){nextClaim(r,e,now);return;}
-  shadow.status='drawing';shadow.activePlayerId=next.playerId;shadow.decisionId=e.id();shadow.deadline=now+DECISION_MS;
-  r.phase='SHADOW_DRAW';r.deadline=shadow.deadline;
+function nextTurn(r:Room,e:EngineOptions,now:number){const s=r.party!.shadow!;s.status='playing';s.claim=s.claims.at(-1)??null;
+  for(const entry of [...s.entries.filter(item=>item.role==='BETTOR'),s.dealer]){if(entry.locked)continue;
+    const p=r.players.find(player=>player.id===entry.playerId);
+    if(entry.role==='CASINO'||!p?.connected||p.departed||r.terminationConfirmed){if(entry.role==='BETTOR')trueStand(entry);else autoDealer(s);event(r,e,`${p?.name??'Casino dealer'} completes the Shadow hand truthfully.`,now,p?.id);continue;}
+    entry.turnDeadline=now+r.turnSeconds*1000;s.activePlayerId=entry.playerId;s.decisionId=e.id();s.deadline=entry.turnDeadline;r.phase='SHADOW_TURN';r.deadline=s.deadline;r.activePlayerId=entry.playerId;r.decisionId=s.decisionId;return;
+  }
+  finish(r,e,now);
 }
-
-/** Entry freezes participants and hands; later presence changes only affect actions. */
 export function startShadow(r:Room,e:EngineOptions,now:number):boolean{
-  const party=r.party;
-  if(r.mode!=='PARTY'||r.phase!=='ROUND_RESULT'||!r.finaleEnabled||!party||party.shadow||party.vaultDistributed||party.vault<=0||r.terminationConfirmed||r.round<r.roundLimit)return false;
-  const entrants=r.players.filter(p=>p.participating&&p.connected&&!p.departed).sort((a,b)=>a.seat-b.seat);
-  if(entrants.length<2)return false;
+  const party=r.party;if(r.mode!=='PARTY'||r.phase!=='ROUND_RESULT'||!r.finaleEnabled||!party||party.shadow||party.vaultDistributed||r.terminationConfirmed||r.round<r.roundLimit)return false;
+  const people=r.players.filter(p=>p.participating&&!p.departed).sort((a,b)=>a.seat-b.seat);if(!people.length)return false;
   requireRule(!party.social&&!r.players.some(p=>Object.keys(p.account.escrows).length||Object.keys(p.account.reservations).some(key=>!validBondReservation(r,p,key))),'LIVE_SHADOW_ENTRY_OBLIGATION');
-  const shadow:ShadowState={id:e.id(),status:'drawing',pot:party.vault,entries:entrants.map(p=>({playerId:p.id,seat:p.seat,hand:[],locked:false,drew:false,revealed:false,claimDone:false})),shoe:e.shoe(),cursor:0,activePlayerId:null,decisionId:null,deadline:null,claim:null,claims:[],winnerIds:[],awards:[],fallback:false,vaultThiefIds:[]};
-  for(let pass=0;pass<2;pass++)for(const p of shadow.entries)p.hand.push(draw(shadow));
-  party.shadow=shadow;r.activePlayerId=undefined;r.decisionId=undefined;r.bettingId=undefined;
-  nextDraw(r,e,now);event(r,e,`Shadow Draw begins for ${entrants.map(p=>p.name).join(', ')}. The funded ${shadow.pot}-chip Vault requires no buy-in. Each frozen entrant may Stand or draw one hidden card.`,now);return true;
+  const entries=people.map(p=>makeEntry(p.id,p.seat,p.id===party.houseId?'HOUSE':'BETTOR',e)),dealer=entries.find(entry=>entry.role==='HOUSE')??makeEntry('CASINO',6,'CASINO',e);
+  const s:ShadowState={id:e.id(),status:'betting',pot:party.vault,entries,dealer,shoe:[],cursor:0,dealt:false,finalized:false,activePlayerId:null,decisionId:null,deadline:now+r.bettingSeconds*1000,claim:null,claims:[],rewards:[],winnerIds:[],awards:[],fallback:false,fallbackReason:'NONE',vaultThiefIds:[]};
+  party.shadow=s;resetChaosRound(r);r.roundId=s.id;r.bettingId=e.id();r.roundPayouts=[];r.deadline=s.deadline;r.phase='SHADOW_BETTING';r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.discarded=[];r.activePlayerId=undefined;r.decisionId=undefined;r.bluff=null;
+  for(const p of r.players){p.hand=[];p.wager=0;p.wagerId=undefined;p.doubled=false;p.chaosAffected=false;p.bluffUsed=false;p.status='shadow';}
+  event(r,e,'Shadow Blackjack betting opens. Zero-wager hands and free calls are available to every entrant.',now);return true;
 }
-
-export function shadowCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){
-  const shadow=r.party?.shadow;requireRule(shadow&&shadow.status!=='settled','SHADOW_CLOSED');requireRule(c.shadowId===shadow.id,'STALE_SHADOW');
-  requireRule(p.participating&&p.connected&&!p.departed,'NOT_PARTICIPATING');const own=entry(r,p.id);
-  if(c.type==='shadow:reveal'){
-    requireRule(own.locked,'SHADOW_HAND_UNLOCKED','Finish your draw decision before revealing.');
-    const wasRevealed=own.revealed;own.revealed=true;
-    if(!shadow.claims.some(claim=>claim.claimantId===p.id))own.claimDone=true;
-    if(!wasRevealed)event(r,e,`${p.name} voluntarily reveals their locked Shadow hand. An existing declaration keeps its published resolution rules.`,now,p.id);
-    if(r.phase==='SHADOW_CLAIM'&&shadow.activePlayerId===p.id)nextClaim(r,e,now);return;
-  }
-  if(c.type==='shadow:challenge'){
-    const claim=shadow.claim;requireRule(r.phase==='SHADOW_CHALLENGE'&&claim?.status==='open','SHADOW_CLAIM_CLOSED');
-    requireRule(c.shadowClaimId===claim.id&&now<claim.deadline,'STALE_SHADOW_CLAIM');requireRule(claim.claimantId!==p.id,'SELF_SHADOW_CHALLENGE');
-    requireRule(!shadow.claims.some(claim=>claim.claimantId===p.id&&claim.status==='caught'),'SHADOW_DISQUALIFIED','A disqualified entrant cannot call another claim.');
-    const claimant=entry(r,claim.claimantId),truth=evaluate(claimant.hand).total===claim.declaredTotal;
-    claim.challengerId=p.id;claim.status=truth?'truthful':'caught';claimant.revealed=true;if(truth)own.revealed=true;
-    event(r,e,truth?`${p.name} calls ${name(r,claim.claimantId)}'s exact ${claim.declaredTotal}. The truthful claimant earns two claim points; ${p.name} loses two challenge points and reveals.`:`${p.name} catches ${name(r,claim.claimantId)}'s false ${claim.declaredTotal} declaration. The claimant is disqualified; ${p.name} earns two challenge points.`,now,p.id);
-    nextClaim(r,e,now);return;
-  }
-  requireRule(r.phase==='SHADOW_DRAW'||r.phase==='SHADOW_CLAIM','SHADOW_DECISION_CLOSED');
-  requireRule(shadow.activePlayerId===p.id,'NOT_SHADOW_TURN');requireRule(c.decisionId===shadow.decisionId&&shadow.deadline!==null&&now<shadow.deadline,'STALE_SHADOW_DECISION');
-  if(r.phase==='SHADOW_DRAW'){
-    requireRule(c.type==='shadow:draw'||c.type==='shadow:stand','UNAVAILABLE_ACTION');requireRule(!own.locked,'SHADOW_HAND_LOCKED');
-    if(c.type==='shadow:draw'){own.hand.push(draw(shadow));own.drew=true;}
-    own.locked=true;event(r,e,`${p.name} ${own.drew?'takes one hidden Shadow Draw':'stands'} and locks their hand.`,now,p.id);nextDraw(r,e,now);return;
-  }
-  requireRule(c.type==='shadow:claim'||c.type==='shadow:pass','UNAVAILABLE_ACTION');requireRule(!own.claimDone&&own.locked,'SHADOW_CLAIM_USED');
-  if(c.type==='shadow:pass'){own.claimDone=true;event(r,e,`${p.name} passes their declaration; the actual hand will score at settlement.`,now,p.id);nextClaim(r,e,now);return;}
-  const declaredTotal=c.payload?.declaredTotal;requireRule(typeof declaredTotal==='number'&&Number.isInteger(declaredTotal)&&declaredTotal>=17&&declaredTotal<=21,'INVALID_SHADOW_TOTAL','Declare one exact total from 17 through 21, even if your actual hand busts.');
-  const claim:ShadowClaim={id:e.id(),claimantId:p.id,declaredTotal:declaredTotal as ShadowClaim['declaredTotal'],status:'open',deadline:now+CHALLENGE_MS};
-  own.claimDone=true;shadow.claim=claim;shadow.claims.push(claim);shadow.status='challenging';shadow.decisionId=null;shadow.deadline=claim.deadline;r.phase='SHADOW_CHALLENGE';r.deadline=claim.deadline;
-  event(r,e,`${p.name} declares an exact ${declaredTotal}. The first valid caller has eight seconds; an uncalled declaration becomes the effective base plus one point.`,now,p.id);
+function deal(r:Room,e:EngineOptions,now:number){const s=r.party!.shadow!;
+  for(const entry of s.entries){const p=r.players.find(p=>p.id===entry.playerId)!;if(p.wagerId&&p.wager){commit(p.account,p.wagerId);commitLiability(r,p);}}
+  s.shoe=e.shoe();for(let pass=0;pass<2;pass++){for(const entry of s.entries.filter(item=>item.role==='BETTOR'))entry.hand.push(draw(s));s.dealer.hand.push(draw(s));}s.dealt=true;nextTurn(r,e,now);
 }
-
-/** True only when the settled reveal has finished and overall results may begin. */
-export function shadowDeadline(r:Room,e:EngineOptions,at:number):boolean{
-  const shadow=r.party?.shadow;requireRule(shadow&&shadow.deadline!==null&&at>=shadow.deadline,'SHADOW_DEADLINE');
-  if(r.phase==='SHADOW_RESULT'){requireRule(shadow.status==='settled','SHADOW_UNSETTLED');return true;}
-  if(r.phase==='SHADOW_DRAW'){entry(r,shadow.activePlayerId!).locked=true;event(r,e,`${name(r,shadow.activePlayerId!)} automatically stands in Shadow Draw.`,at,shadow.activePlayerId!);nextDraw(r,e,at);return false;}
-  if(r.phase==='SHADOW_CLAIM'){entry(r,shadow.activePlayerId!).claimDone=true;event(r,e,`${name(r,shadow.activePlayerId!)} automatically passes their declaration.`,at,shadow.activePlayerId!);nextClaim(r,e,at);return false;}
-  requireRule(r.phase==='SHADOW_CHALLENGE'&&shadow.claim?.status==='open','SHADOW_CLAIM_CLOSED');shadow.claim.status='unchallenged';
-  event(r,e,`${name(r,shadow.claim.claimantId)}'s ${shadow.claim.declaredTotal} declaration goes uncalled: that declared base plus one point is locked, regardless of the actual hand.`,at,shadow.claim.claimantId);nextClaim(r,e,at);return false;
+function claim21(r:Room,entry:ShadowEntryState,e:EngineOptions,now:number){const s=r.party!.shadow!;requireRule(!entry.claimUsed&&!entry.forcedTruth,'SHADOW_CLAIM_UNAVAILABLE');entry.claimUsed=true;entry.locked=true;
+  const claim:ShadowClaim={id:e.id(),claimantId:entry.playerId,declaredTotal:21,status:'open',deadline:now+CHALLENGE_MS};s.claim=claim;s.claims.push(claim);s.status='challenging';s.activePlayerId=entry.playerId;s.decisionId=null;s.deadline=claim.deadline;r.phase='SHADOW_CHALLENGE';r.deadline=claim.deadline;r.activePlayerId=undefined;r.decisionId=undefined;event(r,e,`${r.players.find(p=>p.id===entry.playerId)!.name} claims 21. Calls are free for eight seconds.`,now,entry.playerId);
 }
-
-export function projectShadow(r:Room,viewerId:string):ShadowView|null{
-  const shadow=r.party?.shadow;if(!shadow)return null;const scores=shadow.status==='settled'?shadowScoring(shadow):[];
-  return {id:shadow.id,status:shadow.status,pot:shadow.pot,entrantIds:shadow.entries.map(entry=>entry.playerId),entrants:shadow.entries.map(entry=>{
-    const visible=entry.playerId===viewerId||entry.revealed||shadow.status==='settled',score=scores.find(score=>score.playerId===entry.playerId);
-    return {playerId:entry.playerId,seat:entry.seat,hand:entry.hand.map(card=>visible?{...card}:null),value:visible?evaluate(entry.hand):null,locked:entry.locked,drew:entry.drew,revealed:entry.revealed,claimDone:entry.claimDone,...(score?{disqualified:score.disqualified,baseTotal:score.baseTotal,claimBonus:score.claimBonus,challengePoints:score.challengePoints,score:score.score}:{})};
-  }),activePlayerId:shadow.activePlayerId,decisionId:shadow.activePlayerId===viewerId?shadow.decisionId:null,deadline:shadow.deadline,claim:shadow.claim?{...shadow.claim}:null,claims:shadow.claims.map(claim=>({...claim})),winnerIds:[...shadow.winnerIds],awards:shadow.awards.map(award=>({...award})),fallback:shadow.fallback,vaultThiefIds:[...shadow.vaultThiefIds]};
+export function shadowCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number){const s=r.party?.shadow;requireRule(s&&!s.finalized&&s.dealt,'SHADOW_CLOSED');requireRule(c.shadowId===s.id,'STALE_SHADOW');requireRule(p.participating&&p.connected&&!p.departed,'NOT_PARTICIPATING');const own=getEntry(r,p.id);
+  if(c.type==='shadow:challenge'){const claim=s.claim;requireRule(r.phase==='SHADOW_CHALLENGE'&&claim?.status==='open'&&c.shadowClaimId===claim.id&&now<claim.deadline,'STALE_SHADOW_CLAIM');requireRule(claim.claimantId!==p.id,'SELF_SHADOW_CHALLENGE');requireRule(!own.callUsed&&!own.disqualifiedReason,'SHADOW_CALL_UNAVAILABLE');
+    const claimant=getEntry(r,claim.claimantId),truth=evaluate(claimant.hand).total===21;own.callUsed=true;claim.callId=e.id();claim.challengerId=p.id;claim.status=truth?'truthful':'caught';claimant.revealed=true;claimant.effectiveTotal=evaluate(claimant.hand).total;
+    if(truth){own.revealed=true;own.forcedTruth=true;own.disqualifiedReason='WRONG_CALL';event(r,e,`${p.name} calls a truthful 21, reveals, and loses Vault eligibility. Their funded Blackjack wager remains in play.`,now,p.id);}
+    else{claimant.disqualifiedReason='CAUGHT_LIE';const amount=Math.min(25,r.party!.vault),id=`${r.matchId}:${s.id}:${claim.id}:call-reward`;requireRule(credit(p.account,id,amount),'SHADOW_REWARD_ALREADY_PAID');r.party!.vault-=amount;s.rewards.push({claimId:claim.id,playerId:p.id,amount});r.party!.transfers.push({id,kind:'shadow_call_reward',amount,from:'VAULT',to:p.id});event(r,e,`${p.name} catches a false 21 and receives ${amount} funded Vault chips.`,now,p.id);}
+    nextTurn(r,e,now);return;
+  }
+  requireRule(r.phase==='SHADOW_TURN'&&s.activePlayerId===p.id&&c.decisionId===s.decisionId&&s.deadline!==null&&now<s.deadline,'STALE_SHADOW_DECISION');requireRule(!own.locked,'SHADOW_HAND_LOCKED');
+  if(r.terminationConfirmed){trueStand(own);nextTurn(r,e,now);return;}
+  if(c.type==='shadow:stand'||c.type==='shadow:reveal'||c.type==='shadow:pass'){trueStand(own);event(r,e,`${p.name} declares their true total and stands.`,now,p.id);nextTurn(r,e,now);return;}
+  if(c.type==='shadow:draw'||c.type==='shadow:drawclaim'){requireRule(evaluate(own.hand).total<21,'SHADOW_DRAW_UNAVAILABLE');if(c.type==='shadow:drawclaim')requireRule(!own.claimUsed&&!own.forcedTruth,'SHADOW_CLAIM_UNAVAILABLE');own.hand.push(draw(s));event(r,e,`${p.name} draws a hidden card.`,now,p.id);if(c.type==='shadow:drawclaim')claim21(r,own,e,now);else{s.decisionId=e.id();r.decisionId=s.decisionId;}return;}
+  requireRule(c.type==='shadow:claim'&&(c.payload?.declaredTotal===undefined||c.payload.declaredTotal===21),'INVALID_SHADOW_TOTAL','Only a claim of 21 is supported.');claim21(r,own,e,now);
 }
-
-export function assertShadow(r:Room){
-  const party=r.party,shadow=party?.shadow;if(!party||!shadow)return;
-  requireRule(r.mode==='PARTY'&&Number.isSafeInteger(shadow.pot)&&shadow.pot>0&&shadow.entries.length>=2&&shadow.entries.length<=6,'SHADOW_ENTRY_INVARIANT');
-  const entrantIds=shadow.entries.map(entry=>entry.playerId),cards=shadow.entries.flatMap(entry=>entry.hand);
-  requireRule(new Set(entrantIds).size===entrantIds.length&&shadow.entries.every((entry,i)=>r.players.some(p=>p.id===entry.playerId&&p.participating&&p.seat===entry.seat)&&(i===0||shadow.entries[i-1]!.seat<entry.seat)),'SHADOW_FROZEN_ENTRANTS_INVARIANT');
-  requireRule(new Set(cards.map(card=>card.id)).size===cards.length&&shadow.cursor===cards.length&&new Set(shadow.shoe.map(card=>card.id)).size===shadow.shoe.length&&cards.every(card=>shadow.shoe.slice(0,shadow.cursor).some(dealt=>dealt.id===card.id&&dealt.rank===card.rank&&dealt.suit===card.suit)),'SHADOW_CARD_INVARIANT');
-  for(const entry of shadow.entries)requireRule(entry.hand.length===(entry.drew?3:2)&&(!entry.drew||entry.locked)&&(!entry.revealed||entry.locked)&&(!entry.claimDone||entry.locked),'SHADOW_HAND_INVARIANT');
-  requireRule(new Set(shadow.claims.map(claim=>claim.id)).size===shadow.claims.length&&new Set(shadow.claims.map(claim=>claim.claimantId)).size===shadow.claims.length&&shadow.claims.filter(claim=>claim.status==='open').length<=1,'SHADOW_CLAIMS_INVARIANT');
-  for(const [index,claim] of shadow.claims.entries()){
-    const claimant=shadow.entries.find(entry=>entry.playerId===claim.claimantId);requireRule(claimant&&claimant.locked&&claimant.claimDone&&Number.isInteger(claim.declaredTotal)&&claim.declaredTotal>=17&&claim.declaredTotal<=21&&Number.isFinite(claim.deadline)&&(index===0||entrantIds.indexOf(shadow.claims[index-1]!.claimantId)<entrantIds.indexOf(claim.claimantId)),'SHADOW_CLAIM_INVARIANT');
-    requireRule(['open','unchallenged','truthful','caught'].includes(claim.status),'SHADOW_CLAIM_STATUS_INVARIANT');
-    if(claim.status==='truthful'||claim.status==='caught'){
-      const challenger=shadow.entries.find(entry=>entry.playerId===claim.challengerId);requireRule(challenger&&challenger.playerId!==claim.claimantId&&claimant.revealed,'SHADOW_CHALLENGER_INVARIANT');
-      requireRule((evaluate(claimant.hand).total===claim.declaredTotal)===(claim.status==='truthful')&&(claim.status!=='truthful'||challenger.revealed),'SHADOW_TRUTH_INVARIANT');
-    }else requireRule(claim.challengerId===undefined,'SHADOW_UNCALLED_CHALLENGER_INVARIANT');
-  }
-  requireRule(shadow.claim===null?shadow.claims.length===0:JSON.stringify(shadow.claim)===JSON.stringify(shadow.claims.at(-1)),'SHADOW_CURRENT_CLAIM_INVARIANT');
-  if(shadow.status==='settled'){
-    const scores=shadowScoring(shadow),winners=shadowWinners(r),ordered=r.players.filter(p=>winners.includes(p.id)).sort((a,b)=>a.seat-b.seat);
-    requireRule((r.phase==='SHADOW_RESULT'||r.phase==='RESULTS')&&party.vaultDistributed&&party.vault===0&&shadow.activePlayerId===null&&shadow.decisionId===null&&shadow.entries.every(entry=>entry.locked&&entry.claimDone&&entry.revealed)&&!shadow.claims.some(claim=>claim.status==='open'),'SHADOW_SETTLEMENT_INVARIANT');
-    requireRule(JSON.stringify(shadow.winnerIds)===JSON.stringify(winners)&&shadow.fallback===!scores.some(score=>score.eligible)&&JSON.stringify(shadow.vaultThiefIds)===JSON.stringify(shadowVaultThieves(r)),'SHADOW_WINNER_INVARIANT');
-    requireRule(shadow.awards.length===ordered.length,'SHADOW_AWARDS_INVARIANT');
-    for(const [index,p] of ordered.entries()){
-      const amount=Math.floor(shadow.pot/ordered.length)+(index<shadow.pot%ordered.length?1:0),id=`${r.matchId}:${shadow.id}:${p.id}:shadow-vault`,transfer=party.transfers.filter(transfer=>transfer.id===id);
-      requireRule(shadow.awards[index]?.playerId===p.id&&shadow.awards[index]?.amount===amount&&p.account.settlements[id]===amount&&transfer.length===1&&transfer[0]!.kind==='shadow_award'&&transfer[0]!.amount===amount&&transfer[0]!.from==='VAULT'&&transfer[0]!.to===p.id,'SHADOW_PAYOUT_INVARIANT');
-    }
-    return;
-  }
-  requireRule(!party.vaultDistributed&&party.vault===shadow.pot&&shadow.winnerIds.length===0&&shadow.awards.length===0&&!shadow.fallback&&shadow.vaultThiefIds.length===0&&shadow.deadline===r.deadline&&Number.isFinite(shadow.deadline)&&typeof shadow.activePlayerId==='string'&&entrantIds.includes(shadow.activePlayerId),'SHADOW_LIVE_INVARIANT');
-  if(shadow.status==='drawing')requireRule(r.phase==='SHADOW_DRAW'&&typeof shadow.decisionId==='string'&&shadow.entries.find(entry=>!entry.locked)?.playerId===shadow.activePlayerId&&shadow.claims.length===0,'SHADOW_DRAW_INVARIANT');
-  else if(shadow.status==='claiming')requireRule(r.phase==='SHADOW_CLAIM'&&typeof shadow.decisionId==='string'&&shadow.entries.every(entry=>entry.locked)&&shadow.entries.find(entry=>!entry.claimDone)?.playerId===shadow.activePlayerId&&!shadow.claims.some(claim=>claim.status==='open'),'SHADOW_CLAIM_STAGE_INVARIANT');
-  else requireRule(shadow.status==='challenging'&&r.phase==='SHADOW_CHALLENGE'&&shadow.entries.every(entry=>entry.locked)&&shadow.decisionId===null&&shadow.claim?.status==='open'&&shadow.claim.claimantId===shadow.activePlayerId&&shadow.claim.deadline===shadow.deadline,'SHADOW_CHALLENGE_STAGE_INVARIANT');
+export function shadowPresence(r:Room,e:EngineOptions,now:number){const s=r.party?.shadow;if(!s||s.finalized)return;if(s.status==='betting'){if(r.terminationConfirmed){s.deadline=now;r.deadline=now;}return;}if(r.phase!=='SHADOW_TURN')return;const own=getEntry(r,s.activePlayerId!),p=r.players.find(p=>p.id===own.playerId);if(p?.connected&&!p.departed&&!r.terminationConfirmed)return;if(own.role==='HOUSE')autoDealer(s);else trueStand(own);nextTurn(r,e,now);}
+export function shadowDeadline(r:Room,e:EngineOptions,now:number):boolean{const s=r.party?.shadow;requireRule(s&&s.deadline!==null&&now>=s.deadline,'SHADOW_DEADLINE');if(r.phase==='SHADOW_RESULT')return true;
+  if(r.phase==='SHADOW_BETTING'){if(r.terminationConfirmed){for(const p of r.players){if(p.wagerId){releaseLiability(r,p);release(p.account,p.wagerId);}p.wagerId=undefined;p.wager=0;}r.party!.shadow=null;return true;}deal(r,e,now);return false;}
+  if(r.phase==='SHADOW_TURN'){const own=getEntry(r,s.activePlayerId!);if(own.role==='HOUSE')autoDealer(s);else trueStand(own);nextTurn(r,e,now);return false;}
+  requireRule(r.phase==='SHADOW_CHALLENGE'&&s.claim?.status==='open','SHADOW_CLAIM_CLOSED');const own=getEntry(r,s.claim.claimantId);s.claim.status='unchallenged';own.effectiveTotal=21;own.acceptedBluff=evaluate(own.hand).total!==21;event(r,e,'The uncalled 21 is accepted, regardless of its private actual total.',now,own.playerId);nextTurn(r,e,now);return false;
+}
+function viewEntry(s:ShadowState,entry:ShadowEntryState,viewerId:string):ShadowEntrantView{const visible=entry.playerId===viewerId||entry.revealed||s.finalized;return {handId:entry.handId,playerId:entry.playerId,seat:entry.seat,role:entry.role,hand:entry.hand.map((card,i)=>visible||i===0?{...card}:null),value:visible&&entry.hand.length?evaluate(entry.hand):null,locked:entry.locked,revealed:entry.revealed,claimUsed:entry.claimUsed,callUsed:entry.callUsed,forcedTruth:entry.forcedTruth,disqualifiedReason:entry.disqualifiedReason,effectiveTotal:visible||entry.effectiveTotal===21?entry.effectiveTotal:null,acceptedBluff:visible?entry.acceptedBluff:null};}
+export function projectShadow(r:Room,viewerId:string,now?:number):ShadowView|null{const s=r.party?.shadow;if(!s)return null;const inTime=now===undefined||s.deadline===null||now<s.deadline;const own=s.entries.find(entry=>entry.playerId===viewerId),player=r.players.find(p=>p.id===viewerId),active=inTime&&!!own&&r.phase==='SHADOW_TURN'&&s.activePlayerId===viewerId&&!!player?.connected&&!player.departed&&!r.terminationConfirmed,drawAllowed=active&&!own!.locked&&evaluate(own!.hand).total<21,canCall=inTime&&!!own&&!!player?.connected&&!player.departed&&r.phase==='SHADOW_CHALLENGE'&&s.claim?.status==='open'&&s.claim.claimantId!==viewerId&&!own.callUsed&&!own.disqualifiedReason;
+  return {id:s.id,status:s.status,pot:s.pot,remainingPot:r.party!.vault,entrantIds:s.entries.map(entry=>entry.playerId),entrants:s.entries.map(entry=>viewEntry(s,entry,viewerId)),dealer:{...viewEntry(s,s.dealer,viewerId),ownerId:s.dealer.role==='HOUSE'?s.dealer.playerId:null},actions:{canHit:drawAllowed,canClaim21:active&&!own!.claimUsed&&!own!.forcedTruth,canDrawClaim21:drawAllowed&&!own!.claimUsed&&!own!.forcedTruth,canDeclareTrue:active,canCall,callReward:Math.min(25,r.party!.vault)},activePlayerId:s.activePlayerId,decisionId:active?s.decisionId:null,deadline:s.deadline,claim:s.claim?{...s.claim}:null,claims:s.claims.map(claim=>({...claim})),rewards:s.rewards.map(reward=>({...reward})),winnerIds:[...s.winnerIds],awards:s.awards.map(award=>({...award})),fallback:s.fallback,fallbackReason:s.fallbackReason,vaultThiefIds:[...s.vaultThiefIds]};
+}
+export function assertShadow(r:Room){const party=r.party,s=party?.shadow;if(!s||!party)return;requireRule(r.mode==='PARTY'&&Number.isSafeInteger(s.pot)&&s.pot>=0&&s.entries.length>0&&s.entries.length<=6,'SHADOW_ENTRY_INVARIANT');const hands=[...s.entries.filter(entry=>entry.role==='BETTOR'),s.dealer],cards=hands.flatMap(entry=>entry.hand);requireRule(new Set(s.entries.map(entry=>entry.playerId)).size===s.entries.length&&s.entries.every(entry=>r.players.some(p=>p.id===entry.playerId&&p.participating)),'SHADOW_ENTRANTS_INVARIANT');requireRule(new Set(cards.map(card=>card.id)).size===cards.length&&s.cursor===cards.length,'SHADOW_CARD_INVARIANT');requireRule(new Set(s.claims.map(c=>c.id)).size===s.claims.length&&new Set(s.claims.map(c=>c.claimantId)).size===s.claims.length&&s.claims.filter(c=>c.status==='open').length<=1,'SHADOW_CLAIMS_INVARIANT');requireRule(new Set(s.rewards.map(item=>item.claimId)).size===s.rewards.length&&s.rewards.every(item=>item.amount>=0&&item.amount<=25&&Number.isSafeInteger(item.amount)&&s.claims.some(c=>c.id===item.claimId&&c.status==='caught'&&c.challengerId===item.playerId)),'SHADOW_REWARD_INVARIANT');requireRule(s.pot===party.vault+s.rewards.reduce((n,item)=>n+item.amount,0)+s.awards.reduce((n,item)=>n+item.amount,0),'SHADOW_VAULT_INVARIANT');
+  if(s.finalized)requireRule(party.vaultDistributed&&party.vault===0&&s.status==='settled'&&hands.every(entry=>entry.locked&&entry.revealed)&&!s.claims.some(c=>c.status==='open'),'SHADOW_FINALIZATION_INVARIANT');
+  requireRule(new Set(s.entries.map(entry=>entry.handId)).size===s.entries.length&&s.entries.every(entry=>entry.role!=='CASINO'&&r.players.some(p=>p.id===entry.playerId&&p.seat===entry.seat)),'SHADOW_FROZEN_HAND_INVARIANT');
+  requireRule(s.dealer.role==='HOUSE'?s.entries.find(entry=>entry.role==='HOUSE')===s.dealer&&s.dealer.playerId===party.houseId:!s.entries.some(entry=>entry.role==='HOUSE')&&s.dealer.role==='CASINO','SHADOW_SINGLE_DEALER_INVARIANT');
+  requireRule(new Set(s.shoe.map(card=>card.id)).size===s.shoe.length&&cards.every(card=>s.shoe.slice(0,s.cursor).some(dealt=>dealt.id===card.id&&dealt.rank===card.rank&&dealt.suit===card.suit)),'SHADOW_SHOE_INVARIANT');
+  requireRule(new Set(s.claims.filter(claim=>claim.challengerId).map(claim=>claim.challengerId)).size===s.claims.filter(claim=>claim.challengerId).length,'SHADOW_ONCE_ONLY_CALL_INVARIANT');
+  for(const entry of s.entries)requireRule(entry.claimUsed===s.claims.some(claim=>claim.claimantId===entry.playerId)&&entry.callUsed===s.claims.some(claim=>claim.challengerId===entry.playerId)&&(!entry.forcedTruth||entry.revealed&&entry.disqualifiedReason==='WRONG_CALL'),'SHADOW_ALLOWANCE_INVARIANT');
+  for(const claim of s.claims){const claimant=s.entries.find(entry=>entry.playerId===claim.claimantId);requireRule(claim.declaredTotal===21&&claimant?.locked&&claimant.claimUsed,'SHADOW_CLAIM_INVARIANT');if(claim.status==='caught'||claim.status==='truthful')requireRule(claim.callId&&claim.challengerId&&claimant.revealed&&(evaluate(claimant.hand).total===21)===(claim.status==='truthful'),'SHADOW_CALL_TRUTH_INVARIANT');if(claim.status==='unchallenged')requireRule(claimant.effectiveTotal===21,'SHADOW_ACCEPTED_TOTAL_INVARIANT');}
+  if(r.phase==='SHADOW_TURN'){const active=s.entries.find(entry=>entry.playerId===s.activePlayerId);requireRule(active&&!active.locked&&s.deadline===active.turnDeadline&&r.deadline===s.deadline&&!!s.decisionId,'SHADOW_TURN_BUDGET_INVARIANT');}
+  if(s.finalized)requireRule(!Object.keys(party.bank.liabilities).length&&party.bank.rounds.some(record=>record.roundId===s.id),'SHADOW_BANK_FINALIZATION_INVARIANT');
 }

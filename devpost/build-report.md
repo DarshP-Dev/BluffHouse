@@ -1,6 +1,16 @@
 # Phase 5 local build report
 
-Report date: October 25, 2026. Repository: `C:\Users\Darsh\BluffHouse`, branch `main`.
+Report updated: October26,2026. Repository: `C:\Users\Darsh\BluffHouse`, branch `main`. Earlier sections preserve the original milestone evidence; later approved R1–R5 revisions supersede their old presentation and House/Shadow mechanics.
+
+## Approved redesign and gameplay revisions — October26
+
+R1–R3 are saved at `4b5c307`; the independently verified House-as-dealer R4 checkpoint is `3e964f7`. R5 replaces the old point-scoring finale with actual owner-private Shadow Blackjack under the explicitly approved Section B. The House plays one dealer hand. Every entrant receives two cards; only the first is public. Repeated legal Hits share one fixed turn budget. Immediate or atomic draw-and-claim21 opens an eight-second free call window. Caught liars lose winning Vault eligibility; wrong callers reveal, lose winning eligibility and play truthfully without a fee. Correct callers receive up to25 funded Vault chips. Uncalled21 remains binding even on a real bust. Real naturals alone retain3:2; effective hand comparisons settle backed wagers, then Bank net, then remaining Vault with exact ties and approved fallbacks.
+
+Final server regression passes **931 tests /43 files**; TypeScript and production build pass. The final complete browser run passes **58/58 in5.9 minutes**. Actual journeys prove owner-only hidden busts, free calls at zero chips, wrong-call consequences, natural payouts against an accepted busted dealer21, tied Vault awards, refresh/replay and the integrated six-round claims/duels/deals/Chaos journey. Independent server review found no blockers.
+
+`npm run test:production:shadow` passed with the actual compiled entry, unmodified monotonic clock, secure six-deck shuffle, HTTPS cookie/origin policy over local proxy-termination simulation,900-chip auction, two50-chip wagers (ordinary plus Shadow), free correct call,25-chip reward and875-chip remaining Vault award. Observed balances1050/900, Bank4050, bonus200, zero outstanding liabilities/bond/Vault; total6200 conserved.18 commands/66 snapshots;39.78 seconds, actual replay and clean shutdown. This is local production evidence, not physical-LAN or hosting verification.
+
+Desktop and390px Shadow screens were inspected. R4 remains recoverable; original17slices, approved plans and the separate Slice1 testing worktree remain preserved. Final learner exploration, physical second-device LAN, learning wrap-up/app map and explicit ready-to-ship confirmation remain pending. No deployment or purchase occurred.
 
 Verified Slice 17 implementation milestone: `2bcda22`.
 

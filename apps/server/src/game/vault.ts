@@ -1,62 +1,31 @@
 import {evaluate} from './cards.js';
-import {credit} from './ledger.js';
-import {requireRule,type Room,type EngineOptions,type ShadowState} from './state.js';
+import {credit,assertAccount} from './ledger.js';
+import {requireRule,type Room,type EngineOptions,type ShadowState,type ShadowEntryState} from './state.js';
 
-export interface ShadowScore {playerId:string;baseTotal:number;claimBonus:number;challengePoints:number;disqualified:boolean;eligible:boolean;score:number|null}
-
-/** An uncalled declaration is authoritative even when the actual hand busts. */
-export function shadowScoring(shadow:ShadowState,replaceLiePlayerId?:string):ShadowScore[]{
-  return shadow.entries.map(entry=>{
-    const value=evaluate(entry.hand),claim=shadow.claims.find(claim=>claim.claimantId===entry.playerId&&claim.status!=='open');
-    const ignored=entry.playerId===replaceLiePlayerId&&claim?.status==='unchallenged'&&claim.declaredTotal!==value.total;
-    const disqualified=claim?.status==='caught';
-    const accepted=!ignored&&claim?.status==='unchallenged';
-    const baseTotal=accepted?claim.declaredTotal:value.total;
-    const claimBonus=accepted?1:claim?.status==='truthful'?2:0;
-    const challengePoints=shadow.claims.reduce((points,c)=>c.challengerId!==entry.playerId?points:c.status==='truthful'?points-2:c.status==='caught'?points+2:points,0);
-    const eligible=!disqualified&&(accepted||!value.bust);
-    return {playerId:entry.playerId,baseTotal,claimBonus,challengePoints,disqualified,eligible,score:eligible?baseTotal+claimBonus+challengePoints:null};
-  });
+export function effectiveTotal(entry:ShadowEntryState):number{return entry.effectiveTotal??evaluate(entry.hand).total;}
+export interface ShadowScore {playerId:string;total:number;disqualified:boolean;eligible:boolean;}
+/** Accepted 21 is binding. Counterfactuals remove only the specified successful lie. */
+export function shadowScoring(shadow:ShadowState,replaceLiePlayerId?:string):ShadowScore[]{return shadow.entries.map(entry=>{const actual=evaluate(entry.hand),total=entry.playerId===replaceLiePlayerId&&entry.acceptedBluff?actual.total:effectiveTotal(entry),disqualified=!!entry.disqualifiedReason,eligible=!disqualified&&total<=21;return {playerId:entry.playerId,total,disqualified,eligible};});}
+export function shadowWinners(r:Room,replaceLiePlayerId?:string):string[]{const shadow=r.party!.shadow!,scores=shadowScoring(shadow,replaceLiePlayerId),live=scores.filter(s=>s.eligible);if(live.length){const high=Math.max(...live.map(s=>s.total));return shadow.entries.filter(e=>live.some(s=>s.playerId===e.playerId&&s.total===high)).map(e=>e.playerId);}const eligible=shadow.entries.filter(e=>!e.disqualifiedReason);return (eligible.length?eligible:shadow.entries).map(e=>e.playerId);}
+function awardFor(r:Room,id:string,winners:string[]){const ordered=r.party!.shadow!.entries.filter(e=>winners.includes(e.playerId)).sort((a,b)=>a.seat-b.seat),index=ordered.findIndex(e=>e.playerId===id),pot=r.party!.shadow!.finalized?r.party!.shadow!.awards.reduce((sum,award)=>sum+award.amount,0):r.party!.vault;return index<0?0:Math.floor(pot/ordered.length)+(index<pot%ordered.length?1:0);}
+export function shadowVaultThieves(r:Room):string[]{const shadow=r.party!.shadow!,winners=shadowWinners(r);return shadow.entries.filter(e=>e.acceptedBluff&&winners.includes(e.playerId)&&awardFor(r,e.playerId,winners)>awardFor(r,e.playerId,shadowWinners(r,e.playerId))).map(e=>e.playerId);}
+export function shadowPayout(entry:ShadowEntryState,dealer:ShadowEntryState,stake:number){
+  const actual=evaluate(entry.hand),bank=evaluate(dealer.hand),total=effectiveTotal(entry),dealerTotal=effectiveTotal(dealer),natural=actual.natural&&!entry.acceptedBluff,dealerNatural=bank.natural&&!dealer.acceptedBluff&&dealer.disqualifiedReason!=='CAUGHT_LIE';
+  const dealerBust=dealer.disqualifiedReason==='CAUGHT_LIE'||dealerTotal>21;
+  let outcome:'blackjack'|'win'|'push'|'loss';
+  if(entry.disqualifiedReason==='CAUGHT_LIE'||total>21)outcome='loss';else if(dealerNatural)outcome=natural?'push':'loss';else if(natural)outcome='blackjack';else if(dealerBust||total>dealerTotal)outcome='win';else if(total===dealerTotal)outcome='push';else outcome='loss';
+  const returned=outcome==='blackjack'?stake+Math.floor(3*stake/2):outcome==='win'?2*stake:outcome==='push'?stake:0;return {returned,profit:returned-stake,outcome};
 }
-
-export function shadowWinners(r:Room,replaceLiePlayerId?:string):string[]{
-  const shadow=r.party!.shadow!,scores=shadowScoring(shadow,replaceLiePlayerId),eligible=scores.filter(score=>score.eligible);
-  if(!eligible.length)return r.players.filter(p=>p.participating).sort((a,b)=>a.seat-b.seat).map(p=>p.id);
-  const highest=Math.max(...eligible.map(score=>score.score!));
-  return shadow.entries.filter(entry=>eligible.some(score=>score.playerId===entry.playerId&&score.score===highest)).map(entry=>entry.playerId);
-}
-
-function awardFor(r:Room,playerId:string,winnerIds:string[]){
-  const ordered=r.players.filter(p=>winnerIds.includes(p.id)).sort((a,b)=>a.seat-b.seat),index=ordered.findIndex(p=>p.id===playerId);
-  return index<0?0:Math.floor(r.party!.shadow!.pot/ordered.length)+(index<r.party!.shadow!.pot%ordered.length?1:0);
-}
-export function shadowVaultThieves(r:Room):string[]{
-  const shadow=r.party!.shadow!,actual=shadowWinners(r);
-  return shadow.entries.filter(entry=>{
-    const claim=shadow.claims.find(c=>c.claimantId===entry.playerId&&c.status==='unchallenged');
-    if(!claim||claim.declaredTotal===evaluate(entry.hand).total||!actual.includes(entry.playerId))return false;
-    const counterfactual=shadowWinners(r,entry.playerId),changed=actual.length!==counterfactual.length||actual.some(id=>!counterfactual.includes(id));
-    return changed&&awardFor(r,entry.playerId,actual)>awardFor(r,entry.playerId,counterfactual);
-  }).map(entry=>entry.playerId);
-}
-
-/** The only money movement in Shadow Draw; funded entirely by the existing Vault. */
-export function settleShadowVault(r:Room,e:EngineOptions,now:number){
-  const party=r.party,shadow=party?.shadow;requireRule(party&&shadow,'SHADOW_CLOSED');if(shadow.status==='settled')return;
-  requireRule(!party.vaultDistributed&&party.vault===shadow.pot,'SHADOW_VAULT_INVARIANT');
-  requireRule(shadow.entries.every(entry=>entry.locked&&entry.claimDone)&&!shadow.claims.some(claim=>claim.status==='open'),'SHADOW_OBLIGATION_OPEN');
-  const scores=shadowScoring(shadow),winnerIds=shadowWinners(r);
-  shadow.fallback=!scores.some(score=>score.eligible);shadow.winnerIds=winnerIds;
-  shadow.vaultThiefIds=shadowVaultThieves(r);
-  const winners=r.players.filter(p=>winnerIds.includes(p.id)).sort((a,b)=>a.seat-b.seat);
-  requireRule(winners.length>0,'NO_SHADOW_WINNERS');
-  const each=Math.floor(shadow.pot/winners.length),remainder=shadow.pot%winners.length;
-  for(const [index,p] of winners.entries()){
-    const amount=each+(index<remainder?1:0),id=`${r.matchId}:${shadow.id}:${p.id}:shadow-vault`;
-    requireRule(credit(p.account,id,amount),'SHADOW_ALREADY_SETTLED');party.vault-=amount;
-    party.transfers.push({id,kind:'shadow_award',amount,from:'VAULT',to:p.id});shadow.awards.push({playerId:p.id,amount});
-  }
-  party.vaultDistributed=true;shadow.status='settled';shadow.activePlayerId=null;shadow.decisionId=null;
-  for(const entry of shadow.entries)entry.revealed=true;
-  r.events.push({id:e.id(),kind:'vault',text:shadow.fallback?`Every Shadow Draw entry is ineligible. The ${shadow.pot}-chip Vault is shared among all original participants.`:`Shadow Draw settles: ${winners.map(p=>p.name).join(', ')} ${winners.length===1?'wins':'share'} the funded ${shadow.pot}-chip Vault. Accepted uncalled declarations keep their scores.`,at:now,revision:r.revision+1});r.events=r.events.slice(-60);
+/** All rewards have already left the Vault; distribute exactly its remainder once. */
+export function settleShadowVault(r:Room,e:EngineOptions,now:number){const party=r.party,shadow=party?.shadow;requireRule(party&&shadow,'SHADOW_CLOSED');if(shadow.finalized)return;requireRule(!party.vaultDistributed&&shadow.dealt&&shadow.entries.every(entry=>entry.locked)&&shadow.dealer.locked&&!shadow.claims.some(c=>c.status==='open'),'SHADOW_OBLIGATION_OPEN');
+  requireRule(party.bank.rounds.some(record=>record.roundId===shadow.id)&&!Object.keys(party.bank.liabilities).length&&!r.players.some(player=>player.wagerId&&Object.hasOwn(player.account.escrows,player.wagerId)),'SHADOW_BANK_UNSETTLED');
+  requireRule(Number.isSafeInteger(shadow.pot)&&shadow.pot>=0&&Number.isSafeInteger(party.vault)&&party.vault>=0&&shadow.awards.length===0&&shadow.pot===party.vault+shadow.rewards.reduce((sum,reward)=>sum+reward.amount,0),'SHADOW_VAULT_INVARIANT');
+  const planned=shadowWinners(r),plannedEntries=shadow.entries.filter(entry=>planned.includes(entry.playerId)).sort((a,b)=>a.seat-b.seat);
+  requireRule(plannedEntries.length>0&&new Set(plannedEntries.map(entry=>entry.playerId)).size===plannedEntries.length,'NO_SHADOW_WINNERS');
+  for(const [index,entry] of plannedEntries.entries()){const player=r.players.find(p=>p.id===entry.playerId);requireRule(player,'SHADOW_PLAYER_MISSING');assertAccount(player.account);const id=`${r.matchId}:${shadow.id}:${player.id}:shadow-vault`,amount=Math.floor(party.vault/plannedEntries.length)+(index<party.vault%plannedEntries.length?1:0);requireRule(![player.account.settlements,player.account.reservations,player.account.escrows].some(record=>Object.hasOwn(record,id))&&!party.transfers.some(transfer=>transfer.id===id)&&Number.isSafeInteger(player.account.balance+amount),'SHADOW_ALREADY_SETTLED');}
+  const scores=shadowScoring(shadow);shadow.winnerIds=shadowWinners(r);shadow.fallback=!scores.some(score=>score.eligible);shadow.fallbackReason=!shadow.fallback?'NONE':shadow.entries.some(entry=>!entry.disqualifiedReason)?'NO_LIVE_HAND':'ALL_DISQUALIFIED';shadow.vaultThiefIds=shadowVaultThieves(r);
+  const winners=shadow.entries.filter(entry=>shadow.winnerIds.includes(entry.playerId)).sort((a,b)=>a.seat-b.seat),pot=party.vault;requireRule(winners.length,'NO_SHADOW_WINNERS');
+  for(const [index,entry] of winners.entries()){const player=r.players.find(p=>p.id===entry.playerId)!,amount=Math.floor(pot/winners.length)+(index<pot%winners.length?1:0),id=`${r.matchId}:${shadow.id}:${player.id}:shadow-vault`;requireRule(credit(player.account,id,amount),'SHADOW_ALREADY_SETTLED');party.vault-=amount;party.transfers.push({id,kind:'shadow_award',amount,from:'VAULT',to:player.id});shadow.awards.push({playerId:player.id,amount});}
+  party.vaultDistributed=true;shadow.status='settled';shadow.finalized=true;shadow.activePlayerId=null;shadow.decisionId=null;for(const entry of [...shadow.entries,shadow.dealer])entry.revealed=true;
+  r.events.push({id:e.id(),kind:'vault',text:`Shadow Blackjack settles. ${winners.map(entry=>r.players.find(p=>p.id===entry.playerId)!.name).join(', ')} receive the remaining ${pot}-chip Vault${shadow.fallback?' through the funded fallback':''}.`,at:now,revision:r.revision+1});r.events=r.events.slice(-60);
 }

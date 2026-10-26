@@ -1,4 +1,4 @@
-import { test, expect, scriptedShoe } from '../fixtures/browser.js';
+import { test, expect, scriptedShoe, finishShadowTimeouts } from '../fixtures/browser.js';
 
 test('four guests fund hidden RPS throws, reconnect, settle once and return for Coin Flip', async ({ table }) => {
   const pages = await Promise.all([table.newPlayer(), table.newPlayer(), table.newPlayer(), table.newPlayer()]);
@@ -85,6 +85,7 @@ test('four guests fund hidden RPS throws, reconnect, settle once and return for 
   table.advance(2000);
   await expect(pages[0].getByRole('heading', { name: 'Place your bets', exact: true })).toBeVisible();
   table.advance(24000);
+  finishShadowTimeouts(table,code);
   await expect.poll(() => table.view(code).phase).toBe('RESULTS');
   expect(table.view(code).party!.duelHistory).toHaveLength(2);
   expect(table.view(code).players.reduce((sum, player) => sum + player.balance, 0)).toBe(4000);

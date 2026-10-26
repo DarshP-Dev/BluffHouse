@@ -77,8 +77,7 @@ async function step(h:Harness,t:Table):Promise<boolean>{
       return false;
     }
     case 'DEAL':for(const p of t.people.slice(0,2))if(!v.party!.social!.deal!.lockedPlayerIds.includes(p.id))await send(h,p,'deal:choose',{choice:'SPLIT'});return true;
-    case 'SHADOW_DRAW':await send(h,player(v.party!.shadow!.activePlayerId!),'shadow:stand');return true;
-    case 'SHADOW_CLAIM':await send(h,player(v.party!.shadow!.activePlayerId!),'shadow:claim',{declaredTotal:21});return true;
+    case 'SHADOW_TURN':await send(h,player(v.party!.shadow!.activePlayerId!),'shadow:claim',{declaredTotal:21});return true;
     default:return false;
   }
 }

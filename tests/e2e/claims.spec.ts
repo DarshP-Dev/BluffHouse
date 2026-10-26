@@ -1,4 +1,4 @@
-import { test, expect, scriptedShoe, type TableFixture } from '../fixtures/browser.js';
+import { test, expect, scriptedShoe, finishShadowTimeouts, type TableFixture } from '../fixtures/browser.js';
 import type { Page } from '@playwright/test';
 import type { ClaimType, Rank } from '@bluff-house/shared';
 
@@ -8,7 +8,7 @@ async function startParty(table: TableFixture, ranks: Rank[]) {
   const code = await table.host(pages[0]);
   for (let i = 1; i < 4; i++) await table.join(pages[i], code, ['', 'Blair', 'Casey', 'Drew'][i]);
   await pages[0].getByRole('button', { name: 'Party', exact: true }).click();
-  await expect(pages[0].getByRole('checkbox', { name: 'Shadow Draw finale', exact: false })).toBeChecked();
+  await expect(pages[0].getByRole('checkbox', { name: 'Shadow Blackjack finale', exact: false })).toBeChecked();
   // Keep the added Blackjack rules; disable unrelated systems through the real host controls.
   for (const label of ['House auction and player dealer', 'House overthrow', 'Direct duels', 'Bounties', 'Chaos cards', 'Split or Steal deals']) await pages[0].getByRole('checkbox', { name: label, exact: true }).uncheck();
   await pages[0].getByRole('button', { name: 'Apply Room Settings', exact: true }).click();
@@ -144,6 +144,7 @@ for (const dealerBust of [true, false]) test(`multiple deferred claims survive r
     await expect(pages[0].getByRole('heading', { name: 'Round settled', exact: true })).toBeVisible();
     table.advance(4000);
   }
+  finishShadowTimeouts(table,code);
   await expect(pages[0].getByRole('button', { name: 'Return to Lobby', exact: false })).toBeVisible();
   expect(table.view(code).players.map(player => player.balance)).toEqual(balances);
   expect(table.view(code).claimOutcomes).toHaveLength(3);

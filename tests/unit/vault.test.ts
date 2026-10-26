@@ -1,57 +1,43 @@
 import {describe,expect,it} from 'vitest';
-import type {Rank,ShadowClaim} from '@bluff-house/shared';
-import {shadowScoring,shadowWinners,shadowVaultThieves,settleShadowVault} from '../../apps/server/src/game/vault.js';
-import type {ShadowState} from '../../apps/server/src/game/state.js';
+import type {Rank} from '@bluff-house/shared';
+import type {ShadowEntryState} from '../../apps/server/src/game/state.js';
+import {evaluate} from '../../apps/server/src/game/cards.js';
+import {settleBankRound} from '../../apps/server/src/game/house-bank.js';
+import {effectiveTotal,shadowPayout,shadowScoring,shadowWinners,shadowVaultThieves,settleShadowVault} from '../../apps/server/src/game/vault.js';
 import {shoe} from '../fixtures/core.js';
 import {fundedFinale} from '../fixtures/shadow.js';
 
-function state(ranks:Rank[][],claims:ShadowClaim[]=[]):ShadowState{let count=0;return {id:'unit-shadow',status:'claiming',pot:100,entries:ranks.map((r,i)=>({playerId:`player-${i+1}`,seat:i,hand:shoe(r).slice(0,r.length).map(card=>({...card,id:`unit-card-${count++}`})),locked:true,drew:r.length===3,revealed:false,claimDone:true})),shoe:[],cursor:0,activePlayerId:null,decisionId:null,deadline:null,claim:null,claims,winnerIds:[],awards:[],fallback:false,vaultThiefIds:[]};}
-const claim=(claimantId:string,total:17|18|19|20|21,status:ShadowClaim['status'],challengerId?:string):ShadowClaim=>({id:`claim-${claimantId}`,claimantId,declaredTotal:total,status,deadline:1000,...(challengerId?{challengerId}:{})});
+// The old +1/+2/-2 score arithmetic is intentionally replaced by ordinary totals.
+function ready(ranks:Rank[][],patches:Partial<ShadowEntryState>[]=[]){const f=fundedFinale({players:ranks.length}),r=f.room(),s=r.party!.shadow!;let serial=0;s.entries.forEach((e,i)=>{e.hand=shoe(ranks[i]).slice(0,ranks[i]!.length).map(c=>({...c,id:'vault-unit-'+serial++}));Object.assign(e,{locked:true,revealed:true,effectiveTotal:evaluate(e.hand).total,...patches[i]});});s.shoe=s.entries.flatMap(e=>e.hand.map(c=>({...c})));s.cursor=s.shoe.length;s.activePlayerId=null;s.decisionId=null;s.deadline=null;r.activePlayerId=undefined;r.decisionId=undefined;r.deadline=null;settleBankRound(r,0,0);return f;}
+function hand(ranks:Rank[],patch:Partial<ShadowEntryState>={}):ShadowEntryState{const f=fundedFinale();return {...structuredClone(f.room().party!.shadow!.entries[0]!),hand:shoe(ranks).slice(0,ranks.length),effectiveTotal:null,...patch};}
 
-describe('specific declared totals and truthful challenge arithmetic',()=>{
-  it('uses an unchallenged declared21 as base22 even when the real total29 busts',()=>{
-    const s=state([['10','9','10']],[claim('player-1',21,'unchallenged')]);expect(shadowScoring(s)).toEqual([{playerId:'player-1',baseTotal:21,claimBonus:1,challengePoints:0,disqualified:false,eligible:true,score:22}]);expect(shadowScoring(s,'player-1')[0]).toMatchObject({baseTotal:29,claimBonus:0,eligible:false,score:null});
-  });
-  it('does not retroactively substitute a real hand total for a successful uncalled lower declaration',()=>{
-    const s=state([['10','9']],[claim('player-1',17,'unchallenged')]);expect(shadowScoring(s)[0]).toMatchObject({baseTotal:17,claimBonus:1,score:18,eligible:true});
-  });
-  it('rewards exact truth bytwo and penalizes its incorrect caller bytwo',()=>{
-    const s=state([['10','9'],['10','8']],[claim('player-1',19,'truthful','player-2')]);expect(shadowScoring(s)).toEqual([{playerId:'player-1',baseTotal:19,claimBonus:2,challengePoints:0,disqualified:false,eligible:true,score:21},{playerId:'player-2',baseTotal:18,claimBonus:0,challengePoints:-2,disqualified:false,eligible:true,score:16}]);
-  });
-  it('disqualifies a caught liar while addingtwo to the correct caller with no penalty',()=>{
-    const s=state([['10','9','10'],['10','7']],[claim('player-1',21,'caught','player-2')]);expect(shadowScoring(s)[0]).toMatchObject({disqualified:true,eligible:false,score:null});expect(shadowScoring(s)[1]).toMatchObject({challengePoints:2,score:19});
-  });
-  it('accumulates independent challenge points but never revives a caught or unclaimed busted hand',()=>{
-    const s=state([['10','10','2'],['10','8'],['10','7']],[claim('player-2',18,'truthful','player-1'),claim('player-3',21,'caught','player-1')]);expect(shadowScoring(s)[0]).toMatchObject({challengePoints:0,eligible:false,score:null});expect(shadowScoring(s)[2]).toMatchObject({disqualified:true,score:null});
-  });
+describe('effective Blackjack totals without score bonuses',()=>{
+  it('keeps an uncalled busted29 at21, while its causal counterfactual remains a bust',()=>{const f=ready([['10','9','10'],['10','8']],[{effectiveTotal:21,acceptedBluff:true}]),s=f.room().party!.shadow!;expect(shadowScoring(s)[0]).toEqual({playerId:f.host,total:21,disqualified:false,eligible:true});expect(shadowScoring(s,f.host)[0]).toEqual({playerId:f.host,total:29,disqualified:false,eligible:false});expect(effectiveTotal(s.entries[0]!)).toBe(21);});
+  it('gives true21 no bonus and excludes wrong callers rather than subtracting arbitrary points',()=>{const f=ready([['A','K'],['10','9']],[{}, {disqualifiedReason:'WRONG_CALL',forcedTruth:true}]),s=f.room().party!.shadow!;expect(shadowScoring(s)).toEqual([{playerId:f.actors[0],total:21,disqualified:false,eligible:true},{playerId:f.actors[1],total:19,disqualified:true,eligible:false}]);expect(shadowWinners(f.room())).toEqual([f.host]);});
+  it('excludes a caught claimant even if their real hand did not bust',()=>{const f=ready([['10','10'],['10','7']],[{disqualifiedReason:'CAUGHT_LIE'}]);expect(shadowScoring(f.room().party!.shadow!)[0]).toMatchObject({total:20,disqualified:true,eligible:false});expect(shadowWinners(f.room())).toEqual([f.actors[1]]);});
+  it('ties a real natural and an accepted false21 at exactly21',()=>{const f=ready([['A','K'],['10','9','5'],['10','10']],[{}, {effectiveTotal:21,acceptedBluff:true}]);expect(shadowWinners(f.room())).toEqual(f.actors.slice(0,2));});
 });
 
-describe('funded Vault winners, tie remainders and fallback',()=>{
-  function ready(ranks:Rank[][],claims:ShadowClaim[]=[]){const f=fundedFinale({players:ranks.length}),r=f.room(),original=r.party!.shadow!,s=state(ranks,claims);r.party!.shadow={...s,id:original.id,pot:original.pot};return f;}
-  it('splits an exact three-way tie in original seat order with the remainder paid once',()=>{
-    const f=ready([['10','7'],['9','8'],['10','7']]),r=f.room(),s=r.party!.shadow!;expect(shadowWinners(r)).toEqual(f.actors);settleShadowVault(r,f.manager.e,f.view().serverTime);expect(s.awards).toEqual([{playerId:f.host,amount:34},{playerId:f.actors[1],amount:33},{playerId:f.actors[2],amount:33}]);expect(r.players.map(p=>p.account.balance)).toEqual([934,1033,1033]);expect(r.party!.vault).toBe(0);expect(r.party!.vaultDistributed).toBe(true);const after=structuredClone(r);settleShadowVault(r,f.manager.e,f.view().serverTime);expect(r).toEqual(after);
-  });
-  it('excludes busts and caught claims from winner selection, then falls back to every original participant if all fail',()=>{
-    const f=ready([['10','10','2'],['10','9','3'],['10','8','4']]),r=f.room();expect(shadowWinners(r)).toEqual(f.actors);settleShadowVault(r,f.manager.e,f.view().serverTime);expect(r.party!.shadow!.fallback).toBe(true);expect(r.players.map(p=>p.account.balance)).toEqual([934,1033,1033]);expect(r.party!.vault).toBe(0);
-  });
-  it('includes absent and departed original participants in all-ineligible fallback',()=>{
-    const f=ready([['10','10','2'],['10','9','3'],['10','8','4']]),r=f.room();r.players[1]!.connected=false;r.players[2]!.connected=false;r.players[2]!.departed=true;r.party!.shadow!.entries=r.party!.shadow!.entries.slice(0,2);expect(shadowWinners(r)).toEqual(f.actors);settleShadowVault(r,f.manager.e,f.view().serverTime);expect(r.party!.shadow!.awards.map(a=>a.playerId)).toEqual(f.actors);
-  });
-  it('cannot settle while an entrant hand, declaration or challenge remains open',()=>{
-    for(const pending of ['hand','declaration','challenge'] as const){const f=ready([['10','9'],['10','8']]),r=f.room(),s=r.party!.shadow!;if(pending==='hand')s.entries[0]!.locked=false;else if(pending==='declaration')s.entries[0]!.claimDone=false;else s.claims.push(claim(f.host,19,'open'));const before=structuredClone(r);expect(()=>settleShadowVault(r,f.manager.e,f.view().serverTime)).toThrow('SHADOW_OBLIGATION_OPEN');expect(r).toEqual(before);}
-  });
-  it('rejects any mismatch between the frozen contest pot and its actual funded Vault',()=>{
-    const f=ready([['10','9'],['10','8']]),r=f.room();r.party!.shadow!.pot++;const before=structuredClone(r);expect(()=>settleShadowVault(r,f.manager.e,f.view().serverTime)).toThrow('SHADOW_VAULT_INVARIANT');expect(r).toEqual(before);
-  });
+describe('funded Blackjack settlement uses accepted totals and genuine naturals',()=>{
   it.each([
-    {real:['10','9','10'] as Rank[],declared:21 as const,rival:['10','7'] as Rank[],qualified:true},
-    {real:['10','10'] as Rank[],declared:21 as const,rival:['10','7'] as Rank[],qualified:false},
-    {real:['10','7'] as Rank[],declared:21 as const,rival:['10','10'] as Rank[],qualified:true},
-    {real:['10','9','10'] as Rank[],declared:17 as const,rival:['10','10'] as Rank[],qualified:false},
-  ])('derives the future Vault Thief event only from a false uncalled claim that changed its winner set: $qualified',({real,declared,rival,qualified})=>{
-    const f=ready([real,rival],[claim('player-1',declared,'unchallenged')]),r=f.room();settleShadowVault(r,f.manager.e,f.view().serverTime);expect(r.party!.shadow!.vaultThiefIds.includes(f.host)).toBe(qualified);expect(r.party!.vault).toBe(0);expect(r.party!.bonusReserve).toBe(200);expect(r.dealerNet).toBe(0);
-  });
-  it('does not qualify a new tied winner whose actual remainder-ordered award remains zero',()=>{
-    const f=ready([['10','10'],['A','K'],['10','7']],[claim('player-3',20,'unchallenged')]),r=f.room();r.party!.shadow!.pot=1;expect(shadowWinners(r)).toEqual(f.actors.slice(1));expect(shadowWinners(r,f.actors[2])).toEqual([f.actors[1]]);expect(shadowVaultThieves(r)).toEqual([]);
-  });
+    {name:'genuine odd natural',ranks:['A','K']as Rank[],dealer:['10','8']as Rank[],returned:252,outcome:'blackjack'},
+    {name:'normal win',ranks:['10','9']as Rank[],dealer:['10','8']as Rank[],returned:202,outcome:'win'},
+    {name:'equal total',ranks:['10','8']as Rank[],dealer:['10','8']as Rank[],returned:101,outcome:'push'},
+    {name:'ordinary loss',ranks:['10','7']as Rank[],dealer:['10','8']as Rank[],returned:0,outcome:'loss'},
+    {name:'matching naturals',ranks:['A','K']as Rank[],dealer:['A','Q']as Rank[],returned:101,outcome:'push'},
+    {name:'dealer natural beats later21',ranks:['7','7','7']as Rank[],dealer:['A','Q']as Rank[],returned:0,outcome:'loss'},
+  ])('$name returns the exact funded amount',({ranks,dealer,returned,outcome})=>expect(shadowPayout(hand(ranks),hand(dealer),101)).toEqual({returned,profit:returned-101,outcome}));
+  it('pays a successful false21 at ordinary1:1 even when the real hand busted',()=>{expect(shadowPayout(hand(['10','9','10'],{effectiveTotal:21,acceptedBluff:true}),hand(['10','8']),101)).toEqual({returned:202,profit:101,outcome:'win'});});
+  it('makes a caught bettor lose, but preserves a wrong caller legitimate winning wager',()=>{const dealer=hand(['10','7']);expect(shadowPayout(hand(['10','9'],{disqualifiedReason:'CAUGHT_LIE'}),dealer,100)).toMatchObject({returned:0,outcome:'loss'});expect(shadowPayout(hand(['10','9'],{disqualifiedReason:'WRONG_CALL',forcedTruth:true}),dealer,100)).toMatchObject({returned:200,outcome:'win'});});
+  it('treats a lying caught dealer as busted and an uncalled false dealer21 as binding',()=>{const bettor=hand(['10','9']),caught=hand(['10','10'],{disqualifiedReason:'CAUGHT_LIE'}),accepted=hand(['10','10','5'],{effectiveTotal:21,acceptedBluff:true});expect(shadowPayout(bettor,caught,100)).toMatchObject({returned:200,outcome:'win'});expect(shadowPayout(bettor,accepted,100)).toMatchObject({returned:0,outcome:'loss'});expect(shadowPayout(hand(['A','K']),accepted,100)).toMatchObject({returned:250,outcome:'blackjack'});});
+});
+
+describe('the funded Vault pays highest live totals, remainder ties and explicit fallbacks',()=>{
+  it('pays a three-way17 tie in original seat order and cannot pay twice',()=>{const f=ready([['10','7'],['9','8'],['10','7']]),r=f.room(),s=r.party!.shadow!;r.players.reverse();settleShadowVault(r,f.manager.e,f.view().serverTime);expect(s.awards).toEqual([{playerId:f.actors[0],amount:34},{playerId:f.actors[1],amount:33},{playerId:f.actors[2],amount:33}]);expect([...r.players].sort((a,b)=>a.seat-b.seat).map(p=>p.account.balance)).toEqual([1034,1033,933]);expect(r.party!.vault).toBe(0);expect(s.fallbackReason).toBe('NONE');const paid=structuredClone(r);settleShadowVault(r,f.manager.e,f.view().serverTime);expect(r).toEqual(paid);});
+  it('falls back only to non-disqualified original entrants if all live totals busted',()=>{const f=ready([['10','10','2'],['10','9','3'],['10','8','4']],[{}, {disqualifiedReason:'WRONG_CALL',forcedTruth:true},{}]),r=f.room();expect(shadowWinners(r)).toEqual([f.actors[0],f.actors[2]]);settleShadowVault(r,f.manager.e,f.view().serverTime);expect(r.party!.shadow!).toMatchObject({fallback:true,fallbackReason:'NO_LIVE_HAND'});expect(r.party!.shadow!.awards.map(a=>a.amount)).toEqual([50,50]);expect(r.party!.vault).toBe(0);});
+  it('uses the approved all-original last resort if every entrant was disqualified, including later departures',()=>{const f=ready([['10','9'],['10','8'],['10','7']],[{disqualifiedReason:'CAUGHT_LIE'},{disqualifiedReason:'WRONG_CALL',forcedTruth:true},{disqualifiedReason:'CAUGHT_LIE'}]),r=f.room();r.players[1]!.connected=false;r.players[2]!.departed=true;expect(shadowWinners(r)).toEqual(f.actors);settleShadowVault(r,f.manager.e,f.view().serverTime);expect(r.party!.shadow!).toMatchObject({fallback:true,fallbackReason:'ALL_DISQUALIFIED'});expect(r.party!.shadow!.awards.map(a=>a.amount)).toEqual([34,33,33]);expect(r.party!.vault).toBe(0);});
+  it('does not award a causal Vault Thief badge for a lie that changes neither winner nor actual award',()=>{const f=ready([['10','9'],['10','7']],[{effectiveTotal:21,acceptedBluff:true}]);expect(shadowVaultThieves(f.room())).toEqual([]);const changed=ready([['10','7'],['10','9']],[{effectiveTotal:21,acceptedBluff:true}]);expect(shadowVaultThieves(changed.room())).toEqual([changed.host]);settleShadowVault(changed.room(),changed.manager.e,changed.view().serverTime);expect(changed.room().party!.shadow!.vaultThiefIds).toEqual([changed.host]);});
+  it('keeps a zero-chip tied winner from earning the causal badge when a one-chip remainder goes to another seat',()=>{const f=ready([['10','10'],['A','K'],['10','7']],[{}, {},{effectiveTotal:21,acceptedBluff:true}]),r=f.room(),difference=r.party!.vault-1;r.players[0]!.account.balance+=difference;r.party!.vault=1;r.party!.shadow!.pot=1;expect(shadowWinners(r)).toEqual([f.actors[1],f.actors[2]]);expect(shadowVaultThieves(r)).toEqual([]);});
+  it.each(['hand','dealer','claim']as const)('rejects open %s obligations without any credit or Vault mutation',kind=>{const f=ready([['10','9'],['10','8']]),r=f.room(),s=r.party!.shadow!;if(kind==='hand')s.entries[0]!.locked=false;else if(kind==='dealer')s.dealer.locked=false;else s.claims.push({id:'pending-unit-call',claimantId:f.host,declaredTotal:21,status:'open',deadline:f.view().serverTime+8000});const before=structuredClone(r);expect(()=>settleShadowVault(r,f.manager.e,f.view().serverTime)).toThrow();expect(r).toEqual(before);});
+  it('rejects a frozen-pot/funded-Vault mismatch before changing balances',()=>{const f=ready([['10','9'],['10','8']]),r=f.room();r.party!.shadow!.pot++;const before=structuredClone(r);expect(()=>settleShadowVault(r,f.manager.e,f.view().serverTime)).toThrow();expect(r).toEqual(before);});
 });

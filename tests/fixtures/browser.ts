@@ -21,4 +21,11 @@ export const test=base.extend<{table:TableFixture}>({table:async({browser},use)=
   try{await use(fixture);}finally{for(const context of contexts)await context.close();await server.close();}
 }});
 export {expect};
+/** Unrelated contest tests let the real finale's truthful timeout policy drain. */
+export function finishShadowTimeouts(table:TableFixture,code:string){
+  for(let step=0;step<24&&table.view(code).phase.startsWith('SHADOW_');step++){
+    const view=table.view(code);if(view.deadline===null)throw new Error('Shadow has no authoritative deadline');
+    table.advance(view.deadline-view.serverTime);
+  }
+}
 export async function readyAndStart(pages:Page[]){for(const p of pages)await p.getByRole('button',{name:'Ready Up'}).click();await expect(pages[0].getByRole('button',{name:'Start Game'})).toBeEnabled();await pages[0].getByRole('button',{name:'Start Game'}).click();for(const p of pages)await expect(p.getByRole('heading',{name:'Place your bets'})).toBeVisible();}

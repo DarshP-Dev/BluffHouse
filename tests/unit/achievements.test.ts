@@ -4,7 +4,7 @@ import {ACHIEVEMENTS,defaultMatchStats,updateAchievements,projectMatchStats} fro
 import {defaultProfile,PROFILE_COLORS} from '../../apps/server/src/game/profiles.js';
 import {assertRoom} from '../../apps/server/src/game/engine.js';
 import {fixture,shoe} from '../fixtures/core.js';
-import {fundedFinale,lockShadowHands,declareShadow,finishFinale} from '../fixtures/shadow.js';
+import {fundedFinale,standRemaining,finishFinale} from '../fixtures/shadow.js';
 
 type F=ReturnType<typeof fixture>;
 const badges=(f:F,seat=0)=>f.view().players[seat]!.profile.badges.map(b=>b.id);
@@ -54,10 +54,10 @@ describe('released role, bounty, contract and causal Vault badges',()=>{
     const f=social();f.send(f.host,'deal:offer',{defenderId:f.actors[1],amount:250});const o=f.view().party!.social!.dealInvites[0]!;f.send(f.actors[1]!,'deal:accept',undefined,{dealOfferId:o.id});f.send(f.actors[1]!,'deal:choose',{choice:'SPLIT'});if(timeout)f.advance(10000);else f.send(f.host,'deal:choose',{choice:'STEAL'});expect(badges(f)).toContain('BETRAYER');expect(badges(f)).not.toContain('HIGH_ROLLER');expect(f.view().matchStats.find(s=>s.playerId===f.host)).toMatchObject({dealsPlayed:1,loneSteals:1,cooperations:0,dealNet:250});assertRoom(f.room());
   });
   it('awards Vault Thief only from an actually improved false-uncalled finale award and retains real Vault statistics',()=>{
-    const f=fundedFinale();lockShadowHands(f,[0]);declareShadow(f,0,21);f.advance(8000);finishFinale(f);expect(badges(f)).toContain('VAULT_THIEF');expect(f.view().matchStats.find(s=>s.playerId===f.host)).toMatchObject({vaultWon:100,vaultVictories:1});expect(badges(f)).not.toContain('HIGH_ROLLER');const truthful=fundedFinale();lockShadowHands(truthful);declareShadow(truthful,0,19);truthful.advance(8000);finishFinale(truthful);expect(badges(truthful)).not.toContain('VAULT_THIEF');
+    const f=fundedFinale();expect(f.send(f.host,'shadow:drawclaim').status).toBe('ok');f.advance(8000);standRemaining(f);finishFinale(f);expect(badges(f)).toContain('VAULT_THIEF');expect(f.view().matchStats.find(s=>s.playerId===f.host)).toMatchObject({vaultWon:100,vaultVictories:1});expect(badges(f)).not.toContain('HIGH_ROLLER');const truthful=fundedFinale();standRemaining(truthful);finishFinale(truthful);expect(badges(truthful)).not.toContain('VAULT_THIEF');
   });
   it('counts actual shared Shadow winners as victories while excluding equal-share all-busted fallback payouts',()=>{
-    const tied=fundedFinale({ranks:['10','9','10','7','8','7']});lockShadowHands(tied);finishFinale(tied);expect(tied.view().matchStats.map(s=>s.vaultVictories)).toEqual([1,1,1]);expect(tied.view().matchStats.map(s=>s.vaultWon)).toEqual([34,33,33]);const fallback=fundedFinale({ranks:['10','10','10','9','9','9','10','10','10']});lockShadowHands(fallback,[0,1,2]);finishFinale(fallback);expect(fallback.view().matchStats.map(s=>s.vaultWon)).toEqual([34,33,33]);expect(fallback.view().matchStats.map(s=>s.vaultVictories)).toEqual([0,0,0]);
+    const tied=fundedFinale({ranks:['10','9','10','7','8','7']});standRemaining(tied);finishFinale(tied);expect(tied.view().matchStats.map(s=>s.vaultVictories)).toEqual([1,1,1]);expect(tied.view().matchStats.map(s=>s.vaultWon)).toEqual([34,33,33]);const fallback=fundedFinale({ranks:['10','10','10','9','9','9','10','10','10']});for(const actor of fallback.actors){expect(fallback.send(actor,'shadow:draw').status).toBe('ok');expect(fallback.send(actor,'shadow:stand').status).toBe('ok');}finishFinale(fallback);expect(fallback.view().matchStats.map(s=>s.vaultWon)).toEqual([34,33,33]);expect(fallback.view().matchStats.map(s=>s.vaultVictories)).toEqual([0,0,0]);
   });
 });
 

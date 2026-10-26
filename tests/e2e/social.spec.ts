@@ -87,8 +87,8 @@ test('actual lone stealing and a funded 400-chip duel earn evidenced session bad
   const { pages, code } = await friends(table);
   table.server.manager.e.randomIndex = () => 0;
   await pages[0].getByRole('button', { name: 'Party', exact: true }).click();
-  await pages[0].getByRole('checkbox', { name: 'Shadow Draw finale', exact: true }).click();
-  await expect(pages[0].getByRole('checkbox', { name: 'Shadow Draw finale', exact: true })).not.toBeChecked();
+  await pages[0].getByRole('checkbox', { name: 'Shadow Blackjack finale', exact: true }).click();
+  await expect(pages[0].getByRole('checkbox', { name: 'Shadow Blackjack finale', exact: true })).not.toBeChecked();
   for (const page of pages) await page.getByRole('button', { name: 'Ready Up', exact: true }).click();
   await pages[0].getByRole('button', { name: 'Start Game', exact: true }).click();
   for (const page of pages) await page.getByRole('button', { name: 'Pass Auction', exact: true }).click();
