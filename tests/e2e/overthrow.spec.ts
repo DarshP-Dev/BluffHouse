@@ -52,7 +52,7 @@ test('a real Last Stand transfers the House dealer role and first-loss bond with
   }
   for (const page of pages) {
     await expect(page.locator('.duel-summary')).toContainText('Blair takes the dealer seat.');
-    await expect(page.getByLabel('Party funds')).toContainText('Blair');
+    await expect(page.locator('.dashboard-house')).toContainText('Blair');
     await expect(page.locator('.duel-summary')).toContainText('No chips moved. The room host is unchanged.');
   }
   expect(table.view(code).party!.houseId).toBe(blair.id);
@@ -72,8 +72,8 @@ test('a real Last Stand transfers the House dealer role and first-loss bond with
   await expect(pages[0].getByLabel('Round payouts')).toContainText('250 returned');
   await expect(pages[0].getByLabel('Round payouts')).not.toContainText('commission');
   expect(table.view(code).players.slice(0, 2).map(player => player.balance)).toEqual([1100, 850]);
-  expect(table.view(code).party!.bank).toMatchObject({ balance: 8000, bond: { ownerId: blair.id, amount: 100 } });
-  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -150, bondLoss: 150, bankLoss: 0 });
+  expect(table.view(code).party!.bank).toMatchObject({ balance: 8000, bond: { ownerId: blair.id, amount: 110 } });
+  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -150, dealerStake: 10, stakeLoss: 10, bondLoss: 140, bankLoss: 0 });
   table.advance(4000);
   await expect(pages[0].getByRole('heading', { name: 'Challenge your friends', exact: true })).toBeVisible();
   table.advance(20000);

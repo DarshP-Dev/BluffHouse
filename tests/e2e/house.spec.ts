@@ -59,11 +59,11 @@ test('four guests seal House bids, receive full Blackjack payouts and replay wit
     const payout = page.getByLabel('Round payouts');
     await expect(payout).toContainText('200 returned');
     await expect(payout).not.toContainText('commission');
-    await expect(page.getByLabel('Dealer round settlement')).toContainText('Personal bond lost');
+    await expect(page.getByLabel('Dealer round settlement')).toHaveCount(0);
   }
   expect(table.view(code).players.map(player => player.balance)).toEqual([900, 600, 1100, 1100]);
-  expect(table.view(code).party!.bank).toMatchObject({ balance: 8000, committed: 0, bond: { amount: 150 } });
-  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -100, bondLoss: 100, bankLoss: 0, houseEarnings: 0 });
+  expect(table.view(code).party!.bank).toMatchObject({ balance: 8000, committed: 0, bond: { amount: 160 } });
+  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -100, dealerStake: 10, stakeLoss: 10, bondLoss: 90, bankLoss: 0, houseEarnings: 0 });
   await pages[0].screenshot({ path: 'test-results/house-round-payouts.png', fullPage: true });
   table.advance(4000);
   await expect.poll(() => table.view(code).phase).toBe('SOCIAL');

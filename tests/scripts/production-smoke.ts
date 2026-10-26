@@ -13,8 +13,10 @@ import {fileURLToPath} from 'node:url';
 import {io,type Socket} from 'socket.io-client';
 import type {Ack,Command,CommandType,RoomView} from '@bluff-house/shared';
 
-const shadowMode=process.argv.includes('--shadow');
+const dealerBetMode=process.argv.includes('--dealer-bet');
+const shadowMode=process.argv.includes('--shadow')||dealerBetMode;
 const houseMode=process.argv.includes('--house')||shadowMode;
+const houseBid=dealerBetMode?50:900;
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const sockets:Socket[]=[];
 let child:ChildProcess|undefined,shutdownSent=false,serial=0,maximumPayloadBytes=0,observedSnapshots=0;
@@ -66,19 +68,19 @@ async function main(){
   }
   for(const p of people)await send(p,'lobby:ready',{ready:true});await send(host,'match:start');
   if(houseMode){
-    await until(()=>host.view?.phase==='HOUSE_AUCTION'&&host.view,'real House auction');await send(host,'house:bid',{amount:900});await send(people[1]!,'house:bid',{amount:0});
+    await until(()=>host.view?.phase==='HOUSE_AUCTION'&&host.view,'real House auction');await send(host,'house:bid',{amount:houseBid});await send(people[1]!,'house:bid',{amount:0});
   }
   for(const p of people)await until(()=>p.view?.phase==='BETTING'&&p.view,'initial betting snapshot');
-  if(houseMode){assert.equal(host.view!.party!.houseId,host.id);assert.equal(host.view!.party!.bank.bond.amount,100);assert.equal(host.view!.party!.bank.initial,4000);assert.equal(host.view!.players[0]!.available,0);}
+  if(houseMode){assert.equal(host.view!.party!.houseId,host.id);assert.equal(host.view!.party!.bank.bond.amount,dealerBetMode?250:100);assert.equal(host.view!.party!.bank.initial,4000);assert.equal(host.view!.players[0]!.available,dealerBetMode?690:0);if(dealerBetMode)assert.equal(host.view!.party!.bank.dealerBet.reserved,10);}
   const matchId=host.view!.matchId,betRounds=new Set<number>(),seenCardRounds=new Set<number>();let shadowBet=false,shadowCalled=false;
   for(let count=0;count<1000&&host.view!.phase!=='RESULTS';count++){
     const v=host.view!;
     if(v.players.some(p=>p.hand.length)||v.dealer.length)seenCardRounds.add(v.round);
-    if(v.phase==='BETTING'&&!betRounds.has(v.round)){for(const p of people.filter(person=>!houseMode||person.id!==v.party?.houseId)){await until(()=>p.view&&p.view.roundId===v.roundId&&p.view.phase==='BETTING'&&p.view,'current betting snapshot');await send(p,'bet:submit',{amount:50});}betRounds.add(v.round);}
+    if(v.phase==='BETTING'&&!betRounds.has(v.round)){if(dealerBetMode)await send(host,'dealer:bet',{amount:100});for(const p of people.filter(person=>!houseMode||person.id!==v.party?.houseId)){await until(()=>p.view&&p.view.roundId===v.roundId&&p.view.phase==='BETTING'&&p.view,'current betting snapshot');await send(p,'bet:submit',{amount:50});}betRounds.add(v.round);}
     else if(v.phase==='PLAYER_TURN'){
       const actor=people.find(p=>p.id===v.activePlayerId)!;await until(()=>actor.view?.decisionId&&actor.view, 'active player decision');await send(actor,'turn:stand');
     }else if(houseMode&&v.phase==='DEALER_TURN'&&v.dealerControls.canStand){await send(host,'dealer:stand');}
-    else if(shadowMode&&v.phase==='SHADOW_BETTING'&&!shadowBet){await until(()=>people[1]!.view?.phase==='SHADOW_BETTING'&&people[1]!.view,'Shadow betting snapshot');await send(people[1]!,'bet:submit',{amount:50});shadowBet=true;}
+    else if(shadowMode&&v.phase==='SHADOW_BETTING'&&!shadowBet){if(dealerBetMode)await send(host,'dealer:bet',{amount:100});await until(()=>people[1]!.view?.phase==='SHADOW_BETTING'&&people[1]!.view,'Shadow betting snapshot');await send(people[1]!,'bet:submit',{amount:50});shadowBet=true;}
     else if(shadowMode&&v.phase==='SHADOW_TURN'){
       const actor=people.find(p=>p.id===v.party!.shadow!.activePlayerId)!;
       await until(()=>actor.view?.phase==='SHADOW_TURN'&&actor.view.party?.shadow?.actions.canDeclareTrue&&actor.view,'private Shadow decision');
@@ -92,14 +94,16 @@ async function main(){
   }
   const result=host.view!;assert.equal(result.phase,'RESULTS');const expectedRounds=houseMode?1:3;assert.equal(result.round,expectedRounds);assert.equal(betRounds.size,expectedRounds);assert.equal(seenCardRounds.size,expectedRounds);assert.equal(result.results!.standings.length,2);assert(result.players.every(p=>p.committed===0&&p.reserved===0));
   if(houseMode){const bank=result.party!.bank;assert.equal(bank.rounds.length,shadowMode?2:1);assert.equal(bank.bond.amount,0);assert.equal(bank.committed,0);assert(result.players.every(p=>p.balance>=0));assert.equal(result.players.reduce((sum,p)=>sum+p.balance+p.committed,0)+bank.balance+result.party!.vault+result.party!.bonusReserve,6200);assert.equal(result.party!.vault,0);}
-  if(shadowMode){assert(shadowBet&&shadowCalled);const shadow=result.party!.shadow!;assert.equal(shadow.status,'settled');assert.equal(shadow.claims.length,1);assert(['truthful','caught'].includes(shadow.claims[0]!.status));assert.equal(shadow.awards.reduce((n,a)=>n+a.amount,0)+shadow.rewards.reduce((n,a)=>n+a.amount,0),900);}
+  if(shadowMode){assert(shadowBet&&shadowCalled);const shadow=result.party!.shadow!;assert.equal(shadow.status,'settled');assert.equal(shadow.claims.length,1);assert(['truthful','caught'].includes(shadow.claims[0]!.status));assert.equal(shadow.awards.reduce((n,a)=>n+a.amount,0)+shadow.rewards.reduce((n,a)=>n+a.amount,0),houseBid);}
+  if(dealerBetMode){for(const round of result.party!.bank.rounds){assert.equal(round.dealerStake,100);assert.equal(round.dealerReturned+round.stakeLoss,100);assert.equal(round.dealerProfit,round.houseEarnings-round.stakeLoss);}assert.equal(result.party!.bank.dealerBet.committed,0);}
   const finalBalances=result.players.map(p=>({playerId:p.id,balance:p.balance}));await send(host,'results:return');assert.equal(host.view!.phase,'LOBBY');assert(host.view!.players.every(p=>p.balance===1000&&!p.ready));
   const restart=new Promise<{message:string}>((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('No compiled-entry shutdown message received.')),3000);host.socket.once('recovery:error',value=>{clearTimeout(timeout);resolve(value);});});
   child.send('shutdown');shutdownSent=true;assert((await restart).message.includes('restarting'));await until(()=>exitCode!==undefined,'clean compiled-entry exit',10000);assert.equal(exitCode,0);await assert.rejects(fetch(url+'/api/health'));
   assert.equal(stderr,'','Production entry wrote unexpected stderr.');
   const ordered=[...latencies].sort((a,b)=>a-b),report={entry:'apps/server/dist/index.js',mode:'production HTTPS cookie/origin policy over loopback transport (proxy termination simulation)',clock:'unmodified production monotonic clock',randomness:'unmodified production crypto.randomInt six-deck shuffle',players:2,completedRounds:expectedRounds,game:houseMode?'Party player dealer:900-chip bid,finite Bank,bond,payout and replay':'Classic',dealerBank:houseMode?result.party!.bank:undefined,replay:'same room, fresh stacks and cleared readiness',assets:assets.length,commands:latencies.length,observedSnapshots,maximumPayloadBytes,ackMedianMs:ordered[Math.floor(ordered.length/2)],ackP95Ms:ordered[Math.floor(ordered.length*.95)],elapsedMs:performance.now()-began,finalBalances,shutdown:'actual entry SIGTERM handler, restart message observed, exit 0, listener closed',limitation:'Local smoke only; not hosted, physical-LAN or internet-capacity verification.'};
   if(shadowMode)Object.assign(report,{game:'Party House dealer + hidden Shadow Blackjack, free call, finite Bank and funded Vault',shadow:result.party!.shadow});
-  await mkdir(path.join(root,'test-results'),{recursive:true});await writeFile(path.join(root,'test-results',shadowMode?'shadow-production-smoke.json':houseMode?'house-production-smoke.json':'production-smoke.json'),JSON.stringify(report,null,2));console.info(JSON.stringify(report,null,2));
+  if(dealerBetMode)Object.assign(report,{game:'Mandatory personal dealer bets, funded ordinary and Shadow Blackjack, free call and Vault'});
+  await mkdir(path.join(root,'test-results'),{recursive:true});await writeFile(path.join(root,'test-results',dealerBetMode?'dealer-bet-production-smoke.json':shadowMode?'shadow-production-smoke.json':houseMode?'house-production-smoke.json':'production-smoke.json'),JSON.stringify(report,null,2));console.info(JSON.stringify(report,null,2));
 }
 try{await main();}catch(error){console.error(error instanceof Error?error.message:'Production smoke failed.');process.exitCode=1;}
 finally{

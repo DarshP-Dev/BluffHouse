@@ -102,7 +102,7 @@ describe('the auction winner is the funded dealer', () => {
       return { bank: f.view().party!.bank, balances: [...f.room().players].sort((a, b) => a.seat - b.seat).map(p => p.account.balance), payouts: f.view().roundPayouts };
     };
     const first = run(false), second = run(true);
-    expect(first.bank.rounds.at(-1)).toMatchObject({ losingStakes: 100, winningProfits: 251, net: -151, bondLoss: 151, bankLoss: 0, houseEarnings: 0 });
+    expect(first.bank.rounds.at(-1)).toMatchObject({ losingStakes: 100, winningProfits: 251, net: -151, dealerStake: 10, stakeLoss: 10, bondLoss: 141, bankLoss: 0, houseEarnings: 0 });
     expect(first.balances).toEqual([799, 1151, 1100, 900]); expect(second).toEqual(first);
   });
 

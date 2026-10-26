@@ -16,7 +16,7 @@ import {defaultProfile,assertProfiles} from './profiles.js';
 import {defaultMatchStats} from './achievements.js';
 import {assertChat} from './chat.js';
 import {assertSettings,hasEligibleSocial} from './settings.js';
-import {isHouse,reserveLiability,releaseLiability,commitLiability,settleBankRound,releaseHouseBond,bankAvailable,assertHouseBank} from './house-bank.js';
+import {isHouse,reserveLiability,releaseLiability,commitLiability,settleBankRound,releaseHouseBond,bankAvailable,assertHouseBank,beginDealerBet,commitDealerBet,submitDealerBet} from './house-bank.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -39,6 +39,7 @@ export function startRound(r:Room,e:EngineOptions,now:number){
   r.decisionId=undefined;r.activePlayerId=undefined;r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.discarded=[];r.bluff=null;
   if(r.party)r.party.bank.dealerAutomated=false;
   for(const p of r.players){p.hand=[];p.status=isHouse(r,p)?'dealer':p.participating?'waiting':'observer';p.wager=0;p.wagerId=undefined;p.bluffUsed=false;p.doubled=false;p.chaosAffected=false;}
+  beginDealerBet(r);
   addEvent(r,e,'round',`Round ${r.round} · Place your wagers`,now);
 }
 export function startMatch(r:Room,e:EngineOptions,now:number){
@@ -72,7 +73,7 @@ export function settleRound(r:Room,e:EngineOptions,now:number){
   if(r.party){const existing=r.party.bank.rounds.some(item=>item.roundId===r.roundId);if(!existing){
     for(const {p,result} of outcomes){requireRule(settle(p.account,p.wagerId!,result.returned),'DUPLICATE_ROUND_SETTLEMENT');p.status=result.outcome;r.roundPayouts.push({playerId:p.id,stake:p.wager,returned:result.returned,profit:result.profit,houseCommission:0});addEvent(r,e,'settlement',`${p.name}: ${result.outcome} · ${result.profit>=0?'+':''}${result.profit} chips`,now,p.id);}
     const record=settleBankRound(r,outcomes.reduce((n,item)=>n+Math.max(0,-item.result.profit),0),outcomes.reduce((n,item)=>n+Math.max(0,item.result.profit),0))!;
-    addEvent(r,e,'bank',`Dealer net ${record.net>=0?'+':''}${record.net}. Bond loss ${record.bondLoss}; Bank loss ${record.bankLoss}; Bank recovery ${record.recovery}; House earnings ${record.houseEarnings}.`,now,r.party.houseId??undefined);
+    addEvent(r,e,'bank',`Dealer net ${record.net>=0?'+':''}${record.net}. Dealer stake loss ${record.stakeLoss}; principal returned ${record.dealerReturned}; bond loss ${record.bondLoss}; Bank loss ${record.bankLoss}; Bank recovery ${record.recovery}; House earnings ${record.houseEarnings}.`,now,r.party.houseId??undefined);
   }}else for(const {p,result} of outcomes)if(settle(p.account,p.wagerId!,result.returned)){r.dealerNet+=result.profit;p.status=result.outcome;r.roundPayouts.push({playerId:p.id,stake:p.wager,returned:result.returned,profit:result.profit,houseCommission:0});addEvent(r,e,'settlement',`${p.name}: ${result.outcome} · ${result.profit>=0?'+':''}${result.profit} chips`,now,p.id);}
   settlePendingClaims(r,e,now);
   r.phase='ROUND_RESULT';r.deadline=now+RULES.resultMs;r.activePlayerId=undefined;r.decisionId=undefined;
@@ -100,6 +101,7 @@ export function roundBoundary(r:Room,e:EngineOptions,now:number){
   startRound(r,e,now);
 }
 function commitBetsAndDeal(r:Room,e:EngineOptions,at:number){
+  commitDealerBet(r);
   let wagers=0;
   for(const p of r.players){if(p.wagerId&&p.wager){commit(p.account,p.wagerId);commitLiability(r,p);p.status='playing';wagers++;}else p.status=isHouse(r,p)?'dealer':p.participating?'skipped':'observer';}
   if(!wagers){addEvent(r,e,'round','No wagers were placed.',at);settleRound(r,e,at);return;}
@@ -158,6 +160,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
       else {releaseLiability(r,p);if(p.wagerId)release(p.account,p.wagerId);p.wager=0;p.wagerId=undefined;}
       break;
     }
+    case 'dealer:bet':submitDealerBet(r,p,c,now);break;
     case 'dealer:hit':case 'dealer:stand':{
       requireRule(r.mode==='PARTY'&&r.party&&isHouse(r,p),'NOT_HOUSE');requireRule(r.phase==='DEALER_TURN'&&r.activePlayerId===p.id&&!r.party.bank.dealerAutomated,'DEALER_DECISION_CLOSED');requireRule(c.decisionId===r.decisionId&&r.deadline!==null&&now<r.deadline,'STALE_DECISION');
       const value=evaluate(r.dealer);requireRule(!value.bust&&value.total<21,'DEALER_HAND_FINISHED');

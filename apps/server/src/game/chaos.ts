@@ -1,6 +1,6 @@
 import {type ChaosKind,type ChaosRule,type ChaosView,type Command} from '@bluff-house/shared';
 import {available,credit,reserve} from './ledger.js';
-import {reserveLiability,isHouse,maximumBackedBet} from './house-bank.js';
+import {reserveLiability,isHouse,maximumBackedBet,ensureDealerBet} from './house-bank.js';
 import {addEvent} from './engine.js';
 import {eligibleHands,handCardReason,applyHandCard} from './chaos-hands.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
@@ -105,7 +105,7 @@ export function chaosCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:numbe
   }else if(card.kind==='EMERGENCY_FUND'){
     const amount=Math.min(100,r.party.bonusReserve),id=`${r.matchId}:${p.id}:emergency-fund`;
     requireRule(credit(p.account,id,amount),'EMERGENCY_ALREADY_SETTLED');
-    r.party.bonusReserve-=amount;chaos.emergencyUsed.push(p.id);r.party.transfers.push({id,kind:'bonus',amount,from:'BONUS_RESERVE',to:p.id,roundId:r.roundId});
+    r.party.bonusReserve-=amount;ensureDealerBet(r);chaos.emergencyUsed.push(p.id);r.party.transfers.push({id,kind:'bonus',amount,from:'BONUS_RESERVE',to:p.id,roundId:r.roundId});
     addEvent(r,e,'chaos',`${p.name} receives ${amount} chips from the bonus reserve through Emergency Fund.`,now,p.id);
   }else if(card.kind==='POT_TWIST'){
     chaos.potTwist={id:e.id(),ownerId:p.id,roundId:r.roundId!,status:'pending',deadline:null,optedInIds:[]};

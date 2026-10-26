@@ -20,7 +20,7 @@ function select(f:F,game:DuelGame='RPS',coinSide='HEADS'){
 }
 function threshold(f:F){const b=open(f);for(const id of b.eligibleVoterIds.slice(0,b.requiredVotes))vote(f,id);expect(f.view().phase).toBe('LAST_STAND_CHOICE');return f.view().party!.social!.ballot!;}
 function choices(f:F,challenger:RpsChoice,house:RpsChoice){const d=f.view().party!.social!.duel!;expect(f.send(d.inviterId,'duel:choose',{choice:challenger}).status).toBe('ok');expect(f.send(d.defenderId,'duel:choose',{choice:house}).status).toBe('ok');}
-function clean(f:F){const bond=f.room().party!.bank.bond;for(const player of f.room().players)expect(player.account.reservations).toEqual(bond.ownerId===player.id&&bond.amount?{[bond.reservationId!]:bond.amount}:{});expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);assertRoom(f.room());}
+function clean(f:F){const {bond,dealerBet}=f.room().party!.bank;for(const player of f.room().players){const expected:Record<string,number>={};if(bond.ownerId===player.id&&bond.amount)expected[bond.reservationId!]=bond.amount;if(dealerBet.ownerId===player.id&&dealerBet.status==='RESERVED'){expect(dealerBet.amount).toBeGreaterThanOrEqual(10);expect(dealerBet.roundId).toBe(f.room().roundId);expected[dealerBet.id!]=dealerBet.amount;}expect(player.account.reservations).toEqual(expected);}expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);assertRoom(f.room());}
 
 describe('frozen House ballots and admission ownership',()=>{
   it.each([[2,1],[3,2],[4,3],[5,3],[6,4]])('requires the ceiling threshold with %s participants',(players,required)=>{
@@ -111,8 +111,8 @@ describe('zero-stake Last Stand and crown settlement',()=>{
     f.advance(2000);expect(f.view()).toMatchObject({phase:'BETTING',round:2});expect(f.send(f.actors[2]!,'house:ballot',undefined,{ballotId:b.id}).status).toBe('rejected');
     f.manager.e.shoe=()=>shoe(['5','10','5','7']);expect(f.send(f.host,'bet:submit',{amount:100}).status).toBe('ok');f.deal();
     expect(f.send(f.host,'turn:stand').status).toBe('ok');expect(f.send(d.inviterId,'dealer:stand').status).toBe('ok');
-    expect(f.room().players.find(p=>p.id===d.inviterId)!.account.balance).toBe(balance+50);
-    expect(f.view().party!.bank.rounds.at(-1)).toMatchObject({houseId:d.inviterId,net:100,houseEarnings:50});
+    expect(f.room().players.find(p=>p.id===d.inviterId)!.account.balance).toBe(balance+55);
+    expect(f.view().party!.bank.rounds.at(-1)).toMatchObject({houseId:d.inviterId,net:100,dealerStake:10,dealerReturned:10,houseEarnings:55,bankEarnings:45});
     f.advance(RULES.resultMs);expect(f.view().phase).toBe('SOCIAL');const next=open(f,f.host);expect(next.houseId).toBe(d.inviterId);clean(f);
   });
   it.each(['HOUSE','DRAW'] as const)('retains the existing crown when the outcome is %s',(outcome)=>{

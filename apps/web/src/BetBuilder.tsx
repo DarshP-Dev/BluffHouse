@@ -14,9 +14,9 @@ const makePot = (amount: number): Pot => {
   return { counts, remainder: amount };
 };
 
-export default function BetBuilder({ funds, reserved, disabled, backedMaximum, submit, withdraw }: {
-  funds: number; reserved: number; disabled: boolean; backedMaximum?: number;
-  submit: (amount: number) => Promise<boolean>; withdraw: () => Promise<boolean>;
+export default function BetBuilder({ funds, reserved, disabled, backedMaximum, minimum = 1, submit, withdraw }: {
+  funds: number; reserved: number; disabled: boolean; backedMaximum?: number; minimum?: number;
+  submit: (amount: number) => Promise<boolean>; withdraw?: () => Promise<boolean>;
 }) {
   const [pot, setPot] = useState<Pot>(() => makePot(reserved || Math.min(100, funds)));
   const [history, setHistory] = useState<Pot[]>([]);
@@ -33,7 +33,7 @@ export default function BetBuilder({ funds, reserved, disabled, backedMaximum, s
   const fullyBacked = backedMaximum === undefined || amount <= backedMaximum;
   const edit = (next: Pot) => { setHistory(previous => [...previous.slice(-99), pot]); setPot(next); };
   const shortcut = (fraction: number) => fraction === 1 ? funds : Math.floor(funds * fraction / 10) * 10;
-  return <form className="bet-builder" aria-label="Build your Blackjack wager" onSubmit={event => { event.preventDefault(); if (!disabled && amount > 0 && amount <= funds && fullyBacked) void submit(amount); }}>
+  return <form className="bet-builder" aria-label="Build your Blackjack wager" onSubmit={event => { event.preventDefault(); if (!disabled && amount >= minimum && amount <= funds && fullyBacked) void submit(amount); }}>
     <section className="bet-chip-workspace" aria-label="Choose your wager chips">
       <div className="chip-workspace-heading"><span>YOUR CHIPS</span><span className="bet-funds">{funds.toLocaleString('en-CA')} available</span></div>
       <div className={`personal-pot ${amount ? 'has-chips' : ''}`} aria-label="Chips in your betting pot">
@@ -46,11 +46,12 @@ export default function BetBuilder({ funds, reserved, disabled, backedMaximum, s
     </section>
     <section className="bet-summary" aria-label="Confirm your wager">
       <div className="personal-pot-heading"><label htmlFor="personal-pot-total">Your betting pot</label><output id="personal-pot-total" aria-live="polite">{amount.toLocaleString('en-CA')} <small>chips</small></output></div>
-      <div className="bet-shortcuts" role="group" aria-label="Wager shortcuts">{([{ label: 'All-In', fraction: 1 }, { label: 'Half', fraction: .5 }, { label: 'Quarter', fraction: .25 }]).map(item => <button type="button" className={item.fraction === 1 ? 'shortcut-all-in' : undefined} key={item.label} disabled={disabled || shortcut(item.fraction) < 1} onClick={() => edit(makePot(shortcut(item.fraction)))}>{item.label}</button>)}</div>
+      <div className="bet-shortcuts" role="group" aria-label="Wager shortcuts">{([{ label: 'All-In', fraction: 1 }, { label: 'Half', fraction: .5 }, { label: 'Quarter', fraction: .25 }]).map(item => <button type="button" className={item.fraction === 1 ? 'shortcut-all-in' : undefined} key={item.label} disabled={disabled || shortcut(item.fraction) < minimum} onClick={() => edit(makePot(shortcut(item.fraction)))}>{item.label}</button>)}</div>
       {backedMaximum !== undefined && <p className="bet-backing" aria-label="Backed maximum wager">Backed max <strong>{backedMaximum.toLocaleString('en-CA')} chips</strong></p>}
       {amount > funds && <p className="bet-builder-error" role="alert">Your pot exceeds the {funds.toLocaleString('en-CA')} chips available.</p>}
       {amount <= funds && !fullyBacked && <p className="bet-builder-error" role="alert">The Bank backs up to {backedMaximum!.toLocaleString('en-CA')} chips. Reduce your pot.</p>}
-      <div className="bet-submit-actions"><button type="submit" className="button primary" disabled={disabled || amount < 1 || amount > funds || !fullyBacked}>{reserved ? 'Update Bet' : 'Place Bet'} <span>{amount.toLocaleString('en-CA')}</span></button>{reserved > 0 && <button type="button" className="text-button withdraw-button" disabled={disabled} onClick={async () => { if (await withdraw()) edit(emptyPot()); }}>Withdraw</button>}</div>
+      {amount < minimum && minimum > 1 && <p className="bet-builder-error" role="status">Minimum {minimum.toLocaleString('en-CA')} chips.</p>}
+      <div className="bet-submit-actions"><button type="submit" className="button primary" disabled={disabled || amount < minimum || amount > funds || !fullyBacked}>{reserved ? 'Update Bet' : 'Place Bet'} <span>{amount.toLocaleString('en-CA')}</span></button>{reserved > 0 && withdraw && <button type="button" className="text-button withdraw-button" disabled={disabled} onClick={async () => { if (await withdraw()) edit(emptyPot()); }}>Withdraw</button>}</div>
     </section>
   </form>;
 }

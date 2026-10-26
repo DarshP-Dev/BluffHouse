@@ -135,7 +135,7 @@ test('a genuinely earned Emergency Fund spends the finite reserve once and remai
   await pages[1].reload();
   await openCard(pages[1], 'Emergency Fund');
   await expect(pages[1].getByRole('button', { name: 'Play Emergency Fund', exact: true })).toBeDisabled();
-  await expect(pages[1].getByLabel('Party funds').locator('span').filter({ hasText: 'Bonus reserve' }).locator('strong')).toHaveText('0');
+  await expect(pages[1].getByLabel('Emergency Fund card')).toContainText('Funded award: 0 chips');
   const emergencyTransfers = table.view(code).party!.transfers.filter(transfer => transfer.kind === 'bonus');
   expect(emergencyTransfers.map(transfer => transfer.amount)).toEqual([100, 100]);
   expect(new Set(emergencyTransfers.map(transfer => transfer.id)).size).toBe(2);

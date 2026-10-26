@@ -1,6 +1,14 @@
 # Phase 5 local build report
 
-Report updated: October26,2026. Repository: `C:\Users\Darsh\BluffHouse`, branch `main`. Earlier sections preserve the original milestone evidence; later approved R1–R5 revisions supersede their old presentation and House/Shadow mechanics.
+Report updated: October26,2026. Repository: `C:\Users\Darsh\BluffHouse`, branch `main`. Earlier sections preserve original milestone evidence; approved R1–R5,R7 andR8 revisions supersede earlier presentation and House/Shadow mechanics.
+
+## Compact UI and mandatory dealer bets — latest verification
+
+R7 compact controls and unseen-request sound/shake alerts are saved at `d3bc4f6`. R8 implements the explicitly approved mandatory personal House stake against the table's net Blackjack result. It automatically reserves10 when affordable, allows edits up to spendable funds, commits before cards and skips below10 without debt. Losses consume stake, bond, then Bank; unlost principal returns once. Profit restores Bank shortfall, pays stake-capped priority earnings, then shares the residual50/50. The stake never expands bettor admission capacity. Current stake, returned principal and personal net are shown beside the same private dealer hand; full Bank accounting remains in results.
+
+**990 unit/integration tests across46 files pass**, including45 new financial/lifecycle tests. TypeScript and production build pass. All63 browser cases are verified through the full run and repaired targeted reruns:60 passed initially; stale removed-panel assertions, a stake-before-bond expected amount and an asynchronous test-only ICE nomination assertion were updated without dropping their actual checks. All8 affected Chaos/overthrow/voice cases and both new dealer-bet journeys pass. Real browser proofs include100 stake/150 profit→125 earnings,100 stake/60 loss→40 principal return, pre-card escrow, replay safety, crown transfers, hidden dealer cards and Shadow. The390px personal bet/return/net screen was inspected with no horizontal overflow.
+
+The real compiled dealer-bet smoke passed in40.26seconds using production clock and secure shuffle. A50 auction and100 personal dealer stakes funded ordinary and Shadow rounds; each returned100 principal and earned50 actual net profit. Correct free call reward25 and remaining Vault25 were funded. Final balances1100/900, Bank4000, bonus200 and zero Vault/bond/liabilities conserve6200.20 commands/72 snapshots, replay and clean shutdown. No live hosting, physical second-device LAN, purchase or deployment is implied. Final learner retry/approval and learning wrap-up/app map remain pending.
 
 ## Approved redesign and gameplay revisions — October26
 

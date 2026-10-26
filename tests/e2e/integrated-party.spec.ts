@@ -37,7 +37,7 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await pages[0].getByRole('button',{name:/^Call My Bluff/}).click();
   await pages[2].getByRole('button',{name:/^Accept Challenge/}).click();
   await expect.poll(()=>table.view(code).pendingClaims.length).toBe(1);
-  expect(table.view(code).players.map(p=>p.committed)).toEqual([250,100,250,0]);conserved();
+  expect(table.view(code).players.map(p=>p.committed)).toEqual([250,100,250,10]);conserved();
   await pages[0].reload();
   await expect(pages[0].locator('.bluff-event')).toContainText('Escrow locked. Outcome pending.');
   expect(table.view(code).pendingClaims[0]).not.toHaveProperty('evidence');
@@ -50,8 +50,8 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await pages[2].getByRole('button',{name:'Stand',exact:true}).click();
   await pages[3].getByRole('button',{name:'Dealer Hit',exact:true}).click();
   await expect(pages[0].getByRole('heading',{name:'Round settled',exact:true})).toBeVisible();
-  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,950,650]);
-  expect(table.view(code).party!.bank.rounds[0]).toMatchObject({net:-400,bondLoss:250,bankLoss:150});
+  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,950,640]);
+  expect(table.view(code).party!.bank.rounds[0]).toMatchObject({net:-400,dealerStake:10,stakeLoss:10,bondLoss:250,bankLoss:140});
   expect(table.view(code).claimOutcomes[0]).toMatchObject({winnerId:ids[0],evidence:{dealerBust:true,claimTrue:true}});
   expect(table.view(code).pendingClaims).toEqual([]);
   const earned=table.view(code).party!.chaos.inventories.find(inventory=>inventory.playerId===ids[2])!.cards[0];
@@ -77,7 +77,7 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await pages[3].getByRole('button',{name:'Lock Steal',exact:true}).click();
   await expect(pages[0].locator('.deal-reveal')).toContainText('The full 100-chip pot enters the Vault');
   expect(table.view(code).party!.vault).toBe(200);
-  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,900,600]);conserved();
+  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,900,590]);conserved();
 
   table.advance(2000);
   await expect(pages[2].getByRole('heading',{name:'Place your bets',exact:true})).toBeVisible();
@@ -91,7 +91,7 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   table.advance(21000);
   await pages[3].getByRole('button',{name:'Dealer Stand',exact:true}).click();
   await expect(pages[2].getByLabel('Round payouts')).toContainText('500 returned');
-  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,1200,600]);conserved();
+  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,1200,580]);conserved();
 
   // Later rounds are deliberately sat out: no invented bankrolls or injected cards.
   table.server.manager.e.shoe=()=>scriptedShoe(['10','10','10','10','9','8','7','6','10']);
@@ -115,11 +115,11 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await expect(pages[0].getByRole('button',{name:'Return to Lobby',exact:false})).toBeVisible();
   const final=table.view(code);
   expect(final.phase).toBe('RESULTS');expect(final.results!.winners).toEqual([ids[0]]);
-  expect(final.players.map(p=>p.balance)).toEqual([1450,1200,1200,600]);
+  expect(final.players.map(p=>p.balance)).toEqual([1450,1200,1200,580]);
   expect(final.results!.standings.map(p=>p.id)).toEqual([ids[0],ids[1],ids[2],ids[3]]);
-  expect(room().dealerNet).toBe(450);
-  expect(final.party!.bank.balance).toBe(7550);
-  expect(final.players.reduce((sum,p)=>sum+p.balance,0)).toBe(4450);
+  expect(room().dealerNet).toBe(430);
+  expect(final.party!.bank.balance).toBe(7570);
+  expect(final.players.reduce((sum,p)=>sum+p.balance,0)).toBe(4430);
   expect(final.party).toMatchObject({vault:0,bonusReserve:400});
   expect(final.party!.dealHistory).toHaveLength(1);expect(final.party!.duelHistory).toHaveLength(1);
   expect(final.players.every(p=>p.committed===0&&p.reserved===0)).toBe(true);conserved();

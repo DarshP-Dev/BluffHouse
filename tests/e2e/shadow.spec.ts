@@ -96,7 +96,7 @@ test('an owner-private busted bluff survives an uncalled21 and receives funded B
   expect(final.claims[0].status).toBe('unchallenged'); expect(final.vaultThiefIds).toEqual([ids[0]]);
   expect(table.view(code).roundPayouts[0]).toMatchObject({ stake: 100, returned: 200, profit: 100 });
   expect(table.view(code).players.map(player => player.balance)).toEqual([1400, 1000, 1000, 600]);
-  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -100, bondLoss: 100, bankLoss: 0 });
+  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -100, dealerStake: 10, stakeLoss: 10, bondLoss: 90, bankLoss: 0 });
   await pages[0].screenshot({ path: 'test-results/shadow-accepted-bust-settlement.png', fullPage: true });
   table.advance(2000); await expect.poll(() => table.view(code).phase).toBe('RESULTS');
   await pages[0].reload();
@@ -133,7 +133,7 @@ test('a zero-chip player freely catches a lie; a wrong House caller loses Vault 
   expect(table.view(code).party!.shadow!.awards).toEqual([{ playerId: ids[2], amount: 275 }]);
   expect(table.view(code).party!.shadow!.claims.map(claim => claim.status)).toEqual(['caught', 'truthful']);
   table.advance(2000);
-  expect(table.view(code).players.map(player => player.balance)).toEqual([1000, 25, 1275, 1200]);
+  expect(table.view(code).players.map(player => player.balance)).toEqual([1000, 25, 1275, 1205]);
   expect(table.view(code).party!.transfers.filter(transfer => transfer.kind === 'shadow_call_reward')).toHaveLength(1);
   await pages[1].reload(); expect(table.view(code).players[1].balance).toBe(25);
 });
@@ -162,9 +162,9 @@ test('the House controls one private dealer hand and a successful busted dealer2
   expect(view.party!.shadow!.winnerIds).toEqual([ids[0], ids[3]]);
   expect(view.party!.shadow!.awards).toEqual([{ playerId: ids[0], amount: 150 }, { playerId: ids[3], amount: 150 }]);
   expect(view.roundPayouts.map(payout => payout.profit)).toEqual([150, -100, -100]);
-  expect(view.party!.bank.rounds.at(-1)).toMatchObject({ net: 50, houseEarnings: 25, bankEarnings: 25 });
-  expect(view.players.map(player => player.balance)).toEqual([1300, 900, 900, 875]);
-  expect(view.party!.bank.balance).toBe(8025);
+  expect(view.party!.bank.rounds.at(-1)).toMatchObject({ net: 50, dealerStake: 10, houseEarnings: 30, bankEarnings: 20 });
+  expect(view.players.map(player => player.balance)).toEqual([1300, 900, 900, 880]);
+  expect(view.party!.bank.balance).toBe(8020);
   await pages[3].setViewportSize({ width: 1680, height: 1050 });
   await pages[3].getByRole('region', { name: 'Shadow Blackjack table', exact: true }).screenshot({ path: 'test-results/shadow-house-dealer-tied-vault.png' });
 });

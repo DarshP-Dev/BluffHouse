@@ -1,6 +1,6 @@
 # Bluff House
 
-Current revision: R1–R3 redesign is saved at `4b5c307`; the separately verified R4 House dealer recovery point is `3e964f7`. R5 replaces the old point-scoring finale with owner-private Shadow Blackjack: free eight-second calls, binding uncalled21s (including busts), funded call rewards and actual Blackjack/Vault settlement. See [the checklist](devpost/checklist.md) and [approved rules](devpost/gameplay-revision-proposal.md). Historical slice notes below retain earlier verification evidence and are superseded by these approved revisions where noted.
+Current revision: R1–R5 provide the verified redesigned game and hidden Shadow Blackjack. The compact UI and unseen-request alerts are saved at `d3bc4f6`. The approved R8 revision adds mandatory personal dealer bets: minimum10 when spendable chips permit, separate funded stake, stake-first losses and approved profit priority. See [the checklist](devpost/checklist.md) and [approved rules](devpost/gameplay-revision-proposal.md). Historical slice notes below retain earlier verification evidence and are superseded by these approved revisions where noted.
 
 **Trust Nobody. Call Their Bluff.** A private multiplayer Blackjack party game using fictional, nonredeemable chips. One Node process owns rooms, cards, wagers, clocks, and outcomes; browsers send validated commands and display redacted snapshots.
 
@@ -119,3 +119,5 @@ Chess move validation uses pinned [chess.js 1.4.0](https://jhlywa.github.io/ches
 For a real-clock compiled House dealer smoke test, run `npm run test:production:house`. It uses the existing finite chip economy, actual secure shuffle, a 900-chip bid, settlement and replay on a temporary local port; it does not deploy anything.
 
 `npm run test:production:shadow` additionally plays the hidden Blackjack finale through a free call, finite Bank settlement, funded Vault distribution and replay using the unmodified production clock and secure shuffle.
+
+`npm run test:production:dealer-bet` exercises100-chip personal House stakes in ordinary and Shadow rounds on the compiled server, including principal returns, profit/loss accounting, free calls and replay with the real clock and shuffle.

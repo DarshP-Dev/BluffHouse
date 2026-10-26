@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { account, available, commit, reserve } from '../../apps/server/src/game/ledger.js';
-import { assertHouseBank, bankAvailable, bankCommitted, commitLiability, initialBank, maximumBackedBet, releaseHouseBond, releaseLiability, reserveLiability, settleBankRound, takeHouseBond, validBondReservation } from '../../apps/server/src/game/house-bank.js';
+import { assertHouseBank, bankAvailable, bankCommitted, beginDealerBet, commitDealerBet, commitLiability, initialBank, maximumBackedBet, releaseHouseBond, releaseLiability, reserveLiability, settleBankRound, takeHouseBond, validBondReservation } from '../../apps/server/src/game/house-bank.js';
 import { fixture } from '../fixtures/core.js';
 
 function crowned(bid = 50, players = 2) {
@@ -21,25 +21,26 @@ describe('finite Table Bank and personal bond arithmetic', () => {
     assertHouseBank(r);
   });
 
-  it('spends losses from the bond first, recovers the Bank before sharing, and rebuilds the bond before spendable earnings', () => {
+  it('spends the round stake then bond before Bank losses, recovers the Bank before profit sharing, and rebuilds the bond', () => {
     const f = crowned(), r = f.room(), bank = r.party!.bank, house = r.players[0]!;
-    expect(settleBankRound(r, 0, 500)).toMatchObject({ net: -500, bondLoss: 250, bankLoss: 250, houseEarnings: 0 });
-    expect(bank.balance).toBe(3750); expect(house.account.balance).toBe(700); expect(bank.bond.amount).toBe(0);
-    r.roundId = 'bank-recovery-round';
-    expect(settleBankRound(r, 300, 0)).toMatchObject({ net: 300, recovery: 250, houseEarnings: 25, bankEarnings: 25 });
-    expect(bank.balance).toBe(4025); expect(bank.bond.amount).toBe(25); expect(house.account.balance).toBe(725); expect(available(house.account)).toBe(700);
-    r.roundId = 'bond-restoration-round';
-    expect(settleBankRound(r, 451, 0)).toMatchObject({ recovery: 0, houseEarnings: 225, bankEarnings: 226 });
-    expect(bank.bond.amount).toBe(250); expect(available(house.account)).toBe(700);
-    r.roundId = 'spendable-profit-round';
-    expect(settleBankRound(r, 11, 0)).toMatchObject({ houseEarnings: 5, bankEarnings: 6 });
-    expect(bank.bond.amount).toBe(250); expect(available(house.account)).toBe(705); assertHouseBank(r);
+    commitDealerBet(r);
+    expect(settleBankRound(r, 0, 500)).toMatchObject({ net: -500, dealerStake: 10, stakeLoss: 10, bondLoss: 250, bankLoss: 240, houseEarnings: 0 });
+    expect(bank.balance).toBe(3760); expect(house.account.balance).toBe(690); expect(bank.bond.amount).toBe(0);
+    r.roundId = 'bank-recovery-round'; beginDealerBet(r); commitDealerBet(r);
+    expect(settleBankRound(r, 300, 0)).toMatchObject({ net: 300, dealerStake: 10, dealerReturned: 10, recovery: 240, houseEarnings: 35, bankEarnings: 25 });
+    expect(bank.balance).toBe(4025); expect(bank.bond.amount).toBe(35); expect(house.account.balance).toBe(725); expect(available(house.account)).toBe(690);
+    r.roundId = 'bond-restoration-round'; beginDealerBet(r); commitDealerBet(r);
+    expect(settleBankRound(r, 451, 0)).toMatchObject({ recovery: 0, houseEarnings: 230, bankEarnings: 221 });
+    expect(bank.bond.amount).toBe(250); expect(available(house.account)).toBe(705);
+    r.roundId = 'spendable-profit-round'; beginDealerBet(r); commitDealerBet(r);
+    expect(settleBankRound(r, 11, 0)).toMatchObject({ houseEarnings: 10, bankEarnings: 1 });
+    expect(bank.bond.amount).toBe(250); expect(available(house.account)).toBe(715); assertHouseBank(r);
   });
 
   it('settles the net once and gives identical results irrespective of gross winner/loser order', () => {
-    const f = crowned(), r = f.room(), before = structuredClone(r);
+    const f = crowned(), r = f.room(); commitDealerBet(r); const before = structuredClone(r);
     const first = settleBankRound(r, 901, 500)!;
-    expect(first).toMatchObject({ net: 401, houseEarnings: 200, bankEarnings: 201 });
+    expect(first).toMatchObject({ net: 401, dealerStake: 10, dealerReturned: 10, houseEarnings: 205, bankEarnings: 196 });
     const settled = structuredClone(r);
     expect(settleBankRound(r, 901, 500)).toEqual(first); expect(r).toEqual(settled);
     const reordered = structuredClone(before); reordered.players.reverse();
@@ -58,12 +59,13 @@ describe('finite Table Bank and personal bond arithmetic', () => {
 
   it('releases a bond once, permits a penniless new House, and locks its first earnings into the new bond', () => {
     const f = crowned(), r = f.room(), oldHouse = r.players[0]!, incoming = r.players[1]!, bank = r.party!.bank;
-    const bankBalance = bank.balance; releaseHouseBond(r, 'crown-release'); const released = structuredClone(r);
+    const bankBalance = bank.balance; commitDealerBet(r); settleBankRound(r, 0, 0); releaseHouseBond(r, 'crown-release'); const released = structuredClone(r);
     releaseHouseBond(r, 'crown-release'); expect(r).toEqual(released); expect(available(oldHouse.account)).toBe(950);
     incoming.account = account(0); r.party!.houseId = incoming.id;
     takeHouseBond(r, incoming.id, 'crown-entry'); expect(bank.bond).toMatchObject({ ownerId: incoming.id, amount: 0 });
     expect(bank.balance).toBe(bankBalance);
-    expect(settleBankRound(r, 100, 0)).toMatchObject({ houseEarnings: 50, bankEarnings: 50 });
+    r.roundId = 'penniless-house-round'; beginDealerBet(r); commitDealerBet(r);
+    expect(settleBankRound(r, 100, 0)).toMatchObject({ dealerStake: 0, houseEarnings: 50, bankEarnings: 50 });
     expect(incoming.account.balance).toBe(50); expect(available(incoming.account)).toBe(0); expect(bank.bond.amount).toBe(50); assertHouseBank(r);
   });
 
@@ -74,7 +76,7 @@ describe('finite Table Bank and personal bond arithmetic', () => {
 
   it('rejects a replayed bond-entry identity after release without reserving new personal money', () => {
     const f = crowned(), r = f.room(), id = r.party!.bank.bondHistory[0]!.id;
-    releaseHouseBond(r, 'release-original'); const before = structuredClone(r);
+    commitDealerBet(r); settleBankRound(r, 0, 0); releaseHouseBond(r, 'release-original'); const before = structuredClone(r);
     expect(() => takeHouseBond(r, f.host, id)).toThrow(); expect(r).toEqual(before);
   });
 });

@@ -87,9 +87,9 @@ test('the player dealer may stand to earn losing wagers and may legally hit a hi
   await pages[1].getByRole('button',{name:/^Stand/}).click();
   await expect(pages[0].getByRole('button',{name:'Dealer Stand',exact:true})).toBeEnabled();
   await pages[0].getByRole('button',{name:'Dealer Stand',exact:true}).click();
-  expect(table.view(code).players.map(player=>player.balance)).toEqual([1000,900]);
-  expect(table.view(code).party!.bank).toMatchObject({balance:4050,bond:{amount:250}});
-  expect(table.view(code).party!.bank.rounds[0]).toMatchObject({net:100,houseEarnings:50,bankEarnings:50});
+  expect(table.view(code).players.map(player=>player.balance)).toEqual([1005,900]);
+  expect(table.view(code).party!.bank).toMatchObject({balance:4045,bond:{amount:250}});
+  expect(table.view(code).party!.bank.rounds[0]).toMatchObject({net:100,dealerStake:10,houseEarnings:55,bankEarnings:45});
   table.advance(4000);
   table.server.manager.e.shoe=()=>scriptedShoe(['10','10','6','10','6']);
   await pages[1].getByRole('button',{name:/^Place Bet/}).click();
@@ -98,9 +98,9 @@ test('the player dealer may stand to earn losing wagers and may legally hit a hi
   await pages[0].getByRole('button',{name:'Dealer Hit',exact:true}).click();
   await expect(pages[0].getByRole('heading',{name:'Round settled',exact:true})).toBeVisible();
   expect(table.view(code).dealerValue).toMatchObject({total:26,bust:true});
-  expect(table.view(code).players.map(player=>player.balance)).toEqual([900,1000]);
-  expect(table.view(code).party!.bank).toMatchObject({balance:4050,bond:{amount:150}});
-  expect(table.view(code).party!.bank.rounds[1]).toMatchObject({net:-100,bondLoss:100,bankLoss:0});
+  expect(table.view(code).players.map(player=>player.balance)).toEqual([905,1000]);
+  expect(table.view(code).party!.bank).toMatchObject({balance:4045,bond:{amount:160}});
+  expect(table.view(code).party!.bank.rounds[1]).toMatchObject({net:-100,stakeLoss:10,bondLoss:90,bankLoss:0});
   table.advance(4000);
   await expect(pages[0].getByRole('button',{name:/^Return to Lobby/})).toBeVisible();
   await expect(pages[0].getByRole('region',{name:'Dealer bankroll',exact:true})).toBeVisible();

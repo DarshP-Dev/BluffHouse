@@ -1,6 +1,6 @@
 import type {Command,ShadowClaim,ShadowView,ShadowEntrantView} from '@bluff-house/shared';
 import {available,commit,credit,release,settle} from './ledger.js';
-import {validBondReservation,commitLiability,releaseLiability,settleBankRound} from './house-bank.js';
+import {validBondReservation,commitLiability,releaseLiability,settleBankRound,beginDealerBet,commitDealerBet,cancelDealerBet} from './house-bank.js';
 import {evaluate} from './cards.js';
 import {resetChaosRound} from './chaos.js';
 import {effectiveTotal,shadowPayout,settleShadowVault} from './vault.js';
@@ -34,9 +34,10 @@ export function startShadow(r:Room,e:EngineOptions,now:number):boolean{
   const s:ShadowState={id:e.id(),status:'betting',pot:party.vault,entries,dealer,shoe:[],cursor:0,dealt:false,finalized:false,activePlayerId:null,decisionId:null,deadline:now+r.bettingSeconds*1000,claim:null,claims:[],rewards:[],winnerIds:[],awards:[],fallback:false,fallbackReason:'NONE',vaultThiefIds:[]};
   party.shadow=s;resetChaosRound(r);r.roundId=s.id;r.bettingId=e.id();r.roundPayouts=[];r.deadline=s.deadline;r.phase='SHADOW_BETTING';r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.discarded=[];r.activePlayerId=undefined;r.decisionId=undefined;r.bluff=null;
   for(const p of r.players){p.hand=[];p.wager=0;p.wagerId=undefined;p.doubled=false;p.chaosAffected=false;p.bluffUsed=false;p.status='shadow';}
+  beginDealerBet(r);
   event(r,e,'Shadow Blackjack betting opens. Zero-wager hands and free calls are available to every entrant.',now);return true;
 }
-function deal(r:Room,e:EngineOptions,now:number){const s=r.party!.shadow!;
+function deal(r:Room,e:EngineOptions,now:number){const s=r.party!.shadow!;commitDealerBet(r);
   for(const entry of s.entries){const p=r.players.find(p=>p.id===entry.playerId)!;if(p.wagerId&&p.wager){commit(p.account,p.wagerId);commitLiability(r,p);}}
   s.shoe=e.shoe();for(let pass=0;pass<2;pass++){for(const entry of s.entries.filter(item=>item.role==='BETTOR'))entry.hand.push(draw(s));s.dealer.hand.push(draw(s));}s.dealt=true;nextTurn(r,e,now);
 }
@@ -58,7 +59,7 @@ export function shadowCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:numb
 }
 export function shadowPresence(r:Room,e:EngineOptions,now:number){const s=r.party?.shadow;if(!s||s.finalized)return;if(s.status==='betting'){if(r.terminationConfirmed){s.deadline=now;r.deadline=now;}return;}if(r.phase!=='SHADOW_TURN')return;const own=getEntry(r,s.activePlayerId!),p=r.players.find(p=>p.id===own.playerId);if(p?.connected&&!p.departed&&!r.terminationConfirmed)return;if(own.role==='HOUSE')autoDealer(s);else trueStand(own);nextTurn(r,e,now);}
 export function shadowDeadline(r:Room,e:EngineOptions,now:number):boolean{const s=r.party?.shadow;requireRule(s&&s.deadline!==null&&now>=s.deadline,'SHADOW_DEADLINE');if(r.phase==='SHADOW_RESULT')return true;
-  if(r.phase==='SHADOW_BETTING'){if(r.terminationConfirmed){for(const p of r.players){if(p.wagerId){releaseLiability(r,p);release(p.account,p.wagerId);}p.wagerId=undefined;p.wager=0;}r.party!.shadow=null;return true;}deal(r,e,now);return false;}
+  if(r.phase==='SHADOW_BETTING'){if(r.terminationConfirmed){cancelDealerBet(r);for(const p of r.players){if(p.wagerId){releaseLiability(r,p);release(p.account,p.wagerId);}p.wagerId=undefined;p.wager=0;}r.party!.shadow=null;return true;}deal(r,e,now);return false;}
   if(r.phase==='SHADOW_TURN'){const own=getEntry(r,s.activePlayerId!);if(own.role==='HOUSE')autoDealer(s);else trueStand(own);nextTurn(r,e,now);return false;}
   requireRule(r.phase==='SHADOW_CHALLENGE'&&s.claim?.status==='open','SHADOW_CLAIM_CLOSED');const own=getEntry(r,s.claim.claimantId);s.claim.status='unchallenged';own.effectiveTotal=21;own.acceptedBluff=evaluate(own.hand).total!==21;event(r,e,'The uncalled 21 is accepted, regardless of its private actual total.',now,own.playerId);nextTurn(r,e,now);return false;
 }

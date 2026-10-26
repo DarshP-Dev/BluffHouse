@@ -1,0 +1,13 @@
+.dealer-bet-controls { padding:17px; border:1px solid #bd9a4c; border-radius:13px; background:linear-gradient(120deg,#10243e,#090f1f); }
+.dealer-bet-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:9px; }
+.dealer-bet-heading h2 { margin:0; color:#ffe5a1; font:750 21px/1.2 var(--sans); }
+.dealer-bet-heading>small { color:#b8cbe4; font-size:10px; }
+.dealer-bet-controls .dealer-bet-rule { margin:0 0 14px; color:#c7d5eb; font-size:11px; line-height:1.4; }
+.dealer-bet-controls .dealer-bet-skipped { margin:0; color:#d3dcf0; font-size:12px; line-height:1.5; }
+.dealer-bet-status { display:flex; justify-content:center; flex-wrap:wrap; gap:5px 13px; padding:7px 11px; margin:7px auto; width:fit-content; max-width:100%; border:1px solid #806c3a; border-radius:9px; background:#071729ed; color:#d3def1; font-size:11px; line-height:1.4; }
+.dealer-bet-status strong { color:#ffe09b; font-variant-numeric:tabular-nums; }
+.dealer-bet-status>small { color:#adbed9; font-size:10px; }
+.dealer-bet-status .dealer-bet-loss strong { color:#ffa8a8; }
+.dealer-bet-status .dealer-bet-win strong { color:#7affc0; }
+.shadow-dealer-entry .dealer-bet-status { margin-bottom:0; font-size:10px; }
+@media(max-width:700px) { .dealer-bet-controls { padding:14px 11px; } .dealer-bet-heading h2 { font-size:18px; } .dealer-bet-heading>small { font-size:9px; } .dealer-bet-status { gap:3px 9px; padding:5px 7px; font-size:10px; } }

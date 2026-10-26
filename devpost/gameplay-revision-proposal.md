@@ -1,6 +1,6 @@
 # House dealer and Shadow Blackjack — approved revision rules
 
-Status: **Sections A and B explicitly approved October25. R1–R5 are implemented and mechanically verified**. The learner approved A's finite Bank, capped personal bond, bond-first losses and50% eligible dealer earnings. B's mandatory call bond was rejected, then the revised free-call rules were explicitly approved. Zero-chip calls are required. Historical commit `7084f9e` and all17 original slices remain intact; `3e964f7` preserves the separately verified House dealer with the earlier finale. Final learner review and physical second-device LAN verification remain pending. Integrated evidence:931 server tests,58 browser tests, TypeScript/build and real-clock compiled Shadow smoke pass; see `checklist.md`.
+Status: **Sections A/B approved October25; Section C's mandatory personal dealer bet approved October26. R1–R5,R7 andR8 are implemented and mechanically verified**. Section C supplements A with a personal round stake before bond/Bank losses and its approved profit priority. B retains free calls, including zero-chip entrants. Historical commit `7084f9e` and all17 original slices remain intact; `d3bc4f6` preserves the compact UI before dealer-bet accounting. Final learner review and physical second-device LAN remain pending. Latest evidence:990 server tests, all63 browser cases verified, TypeScript/build and real-clock compiled dealer-bet/Shadow smoke; see `checklist.md`.
 
 ## A. House bankroll and dealer gameplay
 
@@ -87,7 +87,7 @@ The learner explicitly approved a personal House bet against the other players' 
 - On net profit, restore any Bank shortfall first. From the eligible remaining profit, pay the House up to its chosen stake, then half the residual; the Bank receives the rest, including any odd chip. Existing House earnings restore its bond before becoming spendable. A net push returns the stake unchanged. Example with no Bank shortfall: stake100/net profit150 earns125; stake100/net loss60 returns40 principal and loses60.
 - Show the current personal bet and its reserved/committed state during play. At settlement show original stake, returned principal, stake loss, total House earnings and personal net, separately identifying any standing bond loss. Never count returned principal as profit or create unbacked credits. Preserve normal dealer decisions, hidden cards and every existing funded obligation through disconnect, role transfer, termination and replay.
 
-Implementation is the separate R8 milestone following the compact UI/request-alert checkpoint. Its changed financial rules require targeted accounting tests and multiplayer regression before committing.
+Implemented and mechanically verified as the separate R8 milestone after compact UI/request-alert checkpoint `d3bc4f6`. Targeted accounting, full regression, actual multiplayer browsers and real-clock compiled settlement evidence are recorded in `checklist.md`. Final learner retry remains required.
 
 ## Implementation gates and next steps
 

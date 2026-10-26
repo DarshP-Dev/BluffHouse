@@ -12,7 +12,8 @@
     "test:e2e": "npm run build && playwright test",
     "test:production": "npm run build && node --import tsx tests/scripts/production-smoke.ts",
     "test:production:house": "npm run build && node --import tsx tests/scripts/production-smoke.ts --house",
-    "test:production:shadow": "npm run build && node --import tsx tests/scripts/production-smoke.ts --shadow"
+    "test:production:shadow": "npm run build && node --import tsx tests/scripts/production-smoke.ts --shadow",
+    "test:production:dealer-bet": "npm run build && node --import tsx tests/scripts/production-smoke.ts --dealer-bet"
   },
   "devDependencies": {
     "typescript": "^6.0.0", "vite": "^8.3.5", "vitest": "^5.0.5", "tsx": "^4.20.0",

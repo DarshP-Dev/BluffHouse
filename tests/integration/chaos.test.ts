@@ -30,7 +30,7 @@ describe('funded monetary Chaos activation',()=>{
   });
   it('funds multiplied natural profit from the House bond and finite Bank without reducing the return',()=>{
     const f=fixture({mode:'PARTY',ranks:['A','10','K','7']});f.start();expect(f.send(f.host,'house:bid',{amount:50}).status).toBe('ok');f.advance(22000);f.bet(250);expect(activate(f,1,card(f,1,'TRIPLE_DOWN')).status).toBe('ok');f.deal();finish(f);
-    expect(f.view().roundPayouts[0]).toMatchObject({stake:750,returned:1875,profit:1125,houseCommission:0});expect(f.view().players.map(p=>p.balance)).toEqual([700,2125]);expect(f.room().dealerNet).toBe(875);expect(f.view().party!.bank.rounds.at(-1)).toMatchObject({bondLoss:250,bankLoss:875});assertRoom(f.room());
+    expect(f.view().roundPayouts[0]).toMatchObject({stake:750,returned:1875,profit:1125,houseCommission:0});expect(f.view().players.map(p=>p.balance)).toEqual([690,2125]);expect(f.room().dealerNet).toBe(865);expect(f.view().party!.bank.rounds.at(-1)).toMatchObject({dealerStake:10,stakeLoss:10,bondLoss:250,bankLoss:865});assertRoom(f.room());
   });
   it('rejects unfunded multiplication atomically and retains both the held card and activation allowance',()=>{
     const f=betting();f.bet(250);reserve(f.room().players[0]!.account,'other-funds',600);const id=card(f,0,'TRIPLE_DOWN'),before=structuredClone(f.room());expect(activate(f,0,id).status).toBe('rejected');expect(f.room()).toEqual(before);assertRoom(f.room());
