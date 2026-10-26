@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures/browser.js';
+import { test, expect, scriptedShoe } from '../fixtures/browser.js';
 
 test('four guests seal House bids, receive full Blackjack payouts and replay with a fresh Vault', async ({ table }) => {
   const pages = await Promise.all([table.newPlayer(), table.newPlayer(), table.newPlayer(), table.newPlayer()]);
@@ -48,17 +48,22 @@ test('four guests seal House bids, receive full Blackjack payouts and replay wit
     await expect(page.getByLabel('Party funds')).toContainText('300');
   }
   table.advance(2000);
-  for (const page of pages) await page.getByRole('button', { name: 'Place Bet' }).click();
+  table.server.manager.e.shoe = () => scriptedShoe(['10', '10', '10', '10', '6', '8', '9', '7']);
+  for (const [index, page] of pages.entries()) if (index !== 1) await page.getByRole('button', { name: 'Place Bet' }).click();
+  await expect(pages[1].getByRole('button', { name: /^Place Bet/ })).toHaveCount(0);
   table.advance(26000);
-  for (const page of pages) await page.getByRole('button', { name: 'Stand', exact: false }).click();
-  table.advance(350);
+  for (const [index, page] of pages.entries()) if (index !== 1) await page.getByRole('button', { name: 'Stand', exact: true }).click();
+  await pages[1].getByRole('button', { name: 'Dealer Stand', exact: true }).click();
   for (const page of pages) {
     await expect(page.getByRole('heading', { name: 'Round settled' })).toBeVisible();
     const payout = page.getByLabel('Round payouts');
     await expect(payout).toContainText('200 returned');
-    await expect(payout).toContainText('+3 bank-funded commission to Blair');
+    await expect(payout).not.toContainText('commission');
+    await expect(page.getByLabel('Dealer round settlement')).toContainText('Personal bond lost');
   }
-  expect(table.view(code).players.map(player => player.balance)).toEqual([900, 706, 1100, 1100]);
+  expect(table.view(code).players.map(player => player.balance)).toEqual([900, 600, 1100, 1100]);
+  expect(table.view(code).party!.bank).toMatchObject({ balance: 8000, committed: 0, bond: { amount: 150 } });
+  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -100, bondLoss: 100, bankLoss: 0, houseEarnings: 0 });
   await pages[0].screenshot({ path: 'test-results/house-round-payouts.png', fullPage: true });
   table.advance(4000);
   await expect.poll(() => table.view(code).phase).toBe('SOCIAL');
@@ -74,7 +79,8 @@ test('four guests seal House bids, receive full Blackjack payouts and replay wit
     }
   }
   await expect.poll(() => table.view(code).phase).toBe('RESULTS');
-  expect(table.view(code).players.map(player => player.balance)).toEqual([975, 781, 1175, 1175]);
+  expect(table.view(code).players.map(player => player.balance)).toEqual([975, 675, 1175, 1175]);
+  expect(table.view(code).party!.bank).toMatchObject({ balance: 8000, bond: { ownerId: null, amount: 0 } });
   for (const page of pages) await expect(page.getByLabel('Final Vault distribution')).toContainText('300 chips shared');
   await pages[0].getByRole('button', { name: 'Return to Lobby' }).click();
   await expect(pages[0].getByRole('heading', { name: 'Your table', exact: true })).toBeVisible();

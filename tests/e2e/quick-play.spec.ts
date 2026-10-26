@@ -62,7 +62,7 @@ test('host Party settings preserve sparse occupied seats, enforce dependencies a
   const otherPreset = await table.newPlayer();
   expect(await quick(table, otherPreset, 'OtherPreset', 'PARTY')).not.toBe(code);
   await expect(pages[5].getByRole('button', { name: 'Apply Room Settings', exact: true })).toBeDisabled();
-  await expect(pages[5].getByRole('checkbox', { name: 'House auction and commissions', exact: true })).toBeDisabled();
+  await expect(pages[5].getByRole('checkbox', { name: 'House auction and player dealer', exact: true })).toBeDisabled();
   for (const page of pages.slice(1, 5)) {
     await page.getByRole('button', { name: 'Leave Room', exact: false }).click();
     await expect(page.getByRole('button', { name: 'Host Room', exact: true })).toBeVisible();
@@ -70,7 +70,7 @@ test('host Party settings preserve sparse occupied seats, enforce dependencies a
   await pages[5].getByRole('button', { name: 'Ready Up', exact: true }).click();
   const beforeLobby = table.view(code).lobbyId;
   await pages[0].getByRole('combobox', { name: 'Player capacity', exact: true }).selectOption('2');
-  await pages[0].getByRole('checkbox', { name: 'House auction and commissions', exact: true }).uncheck();
+  await pages[0].getByRole('checkbox', { name: 'House auction and player dealer', exact: true }).uncheck();
   await expect(pages[0].locator('.settings-dependency')).toContainText('House overthrow requires');
   await expect(pages[0].getByRole('checkbox', { name: 'House overthrow', exact: true })).toBeChecked();
   await expect(pages[0].getByRole('button', { name: 'Apply Room Settings', exact: true })).toBeDisabled();
@@ -87,7 +87,7 @@ test('host Party settings preserve sparse occupied seats, enforce dependencies a
   for (const page of [pages[0], pages[5]]) {
     await expect(page.locator('.lobby-seat')).toHaveCount(2);
     await expect(page.locator('.lobby-seat').filter({ hasText: 'Finley' })).toBeVisible();
-    await expect(page.locator('.party-description')).toContainText('House auction and commissions are disabled');
+    await expect(page.locator('.party-description')).toContainText('The player House is disabled');
   }
   const nextPublic = await table.newPlayer();
   expect(await quick(table, nextPublic, 'NewPublic', 'PARTY_6')).not.toBe(code);

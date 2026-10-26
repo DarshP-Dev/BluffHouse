@@ -6,7 +6,7 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   // Only the existing server constructor's clock, RNG and shoe are controlled.
   // Every player action below goes through the same browser controls as a guest.
   table.server.manager.e.randomIndex=()=>0;
-  table.server.manager.e.shoe=()=>scriptedShoe(['6','10','9','8','10','6','8','8','9','6','8','3','10']);
+  table.server.manager.e.shoe=()=>scriptedShoe(['6','10','9','10','6','8','8','6','8','3','10']);
   const pages=await Promise.all(Array.from({length:4},()=>table.newPlayer()));
   const failures:string[]=[];
   for(const page of pages){
@@ -23,21 +23,21 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await pages[0].getByRole('button',{name:'Start Game',exact:true}).click();
   const ids=table.view(code).players.map(player=>player.id),matchId=table.view(code).matchId;
   const room=()=>table.server.manager.rooms.get(table.view(code).instanceId)!;
-  const conserved=()=>{assertRoom(room());const r=room();expect(r.players.reduce((sum,p)=>sum+p.account.balance+Object.values(p.account.escrows).reduce((n,v)=>n+v,0),0)+(r.party?.vault??0)+(r.party?.bonusReserve??0)).toBe(r.initialChips+(r.party?.initialBonusReserve??0)+r.dealerNet);};
-  await pages[0].getByRole('button',{name:'House bid 100 chips',exact:true}).click();
-  await pages[0].getByRole('button',{name:'Submit House Bid',exact:false}).click();
-  for(const page of pages.slice(1))await page.getByRole('button',{name:'Pass Auction',exact:true}).click();
+  const conserved=()=>{assertRoom(room());const r=room();expect(r.players.reduce((sum,p)=>sum+p.account.balance+Object.values(p.account.escrows).reduce((n,v)=>n+v,0),0)+(r.party?.bank.balance??0)+(r.party?.vault??0)+(r.party?.bonusReserve??0)).toBe(r.initialChips+(r.party?.bank.initial??0)+(r.party?.initialBonusReserve??0));};
+  await pages[3].getByRole('button',{name:'House bid 100 chips',exact:true}).click();
+  await pages[3].getByRole('button',{name:'Submit House Bid',exact:false}).click();
+  for(const page of pages.slice(0,3))await page.getByRole('button',{name:'Pass Auction',exact:true}).click();
   table.advance(22000);
   await expect(pages[0].getByRole('heading',{name:'Place your bets',exact:true})).toBeVisible();
-  expect(table.view(code).party).toMatchObject({houseId:ids[0],vault:100});conserved();
-  for(const page of pages)await page.getByRole('button',{name:'Place Bet',exact:false}).click();
+  expect(table.view(code).party).toMatchObject({houseId:ids[3],vault:100});conserved();
+  for(const page of pages.slice(0,3))await page.getByRole('button',{name:'Place Bet',exact:false}).click();
   table.advance(26000);
   await pages[0].getByRole('combobox',{name:'Your bluff claim',exact:true}).selectOption('DEALER_BUST');
   await pages[0].getByRole('button',{name:'Bluff 150 chips',exact:true}).click();
   await pages[0].getByRole('button',{name:/^Call My Bluff/}).click();
   await pages[2].getByRole('button',{name:/^Accept Challenge/}).click();
   await expect.poll(()=>table.view(code).pendingClaims.length).toBe(1);
-  expect(table.view(code).players.map(p=>p.committed)).toEqual([250,100,250,100]);conserved();
+  expect(table.view(code).players.map(p=>p.committed)).toEqual([250,100,250,0]);conserved();
   await pages[0].reload();
   await expect(pages[0].locator('.bluff-event')).toContainText('Escrow locked. Outcome pending.');
   expect(table.view(code).pendingClaims[0]).not.toHaveProperty('evidence');
@@ -47,10 +47,11 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await pages[0].getByRole('button',{name:/^Stand/}).click();
   await pages[1].getByRole('button',{name:/^Double Down/}).click();
   expect(table.view(code).players[1]).toMatchObject({doubled:true,wager:200,status:'stood'});
-  for(const page of pages.slice(2))await page.getByRole('button',{name:/^Stand/}).click();
-  table.advance(700);
+  await pages[2].getByRole('button',{name:'Stand',exact:true}).click();
+  await pages[3].getByRole('button',{name:'Dealer Hit',exact:true}).click();
   await expect(pages[0].getByRole('heading',{name:'Round settled',exact:true})).toBeVisible();
-  expect(table.view(code).players.map(p=>p.balance)).toEqual([1162,1200,950,1100]);
+  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,950,650]);
+  expect(table.view(code).party!.bank.rounds[0]).toMatchObject({net:-400,bondLoss:250,bankLoss:150});
   expect(table.view(code).claimOutcomes[0]).toMatchObject({winnerId:ids[0],evidence:{dealerBust:true,claimTrue:true}});
   expect(table.view(code).pendingClaims).toEqual([]);
   const earned=table.view(code).party!.chaos.inventories.find(inventory=>inventory.playerId===ids[2])!.cards[0];
@@ -59,10 +60,10 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   // Two different contests share the same immutable six-round social interval.
   table.advance(4000);
   await pages[1].getByRole('button',{name:'Open Overthrow Ballot',exact:true}).click();
-  for(const page of pages.slice(1))await page.getByRole('button',{name:'Vote Yes',exact:true}).click();
-  await pages[0].getByRole('combobox',{name:'Last Stand game',exact:true}).selectOption('COIN');
-  await pages[0].getByRole('button',{name:'Begin Last Stand',exact:true}).click();
-  await expect(pages[0].locator('.duel-summary')).toContainText('Alex retains the House crown');
+  for(const page of pages.slice(0,3))await page.getByRole('button',{name:'Vote Yes',exact:true}).click();
+  await pages[3].getByRole('combobox',{name:'Last Stand game',exact:true}).selectOption('COIN');
+  await pages[3].getByRole('button',{name:'Begin Last Stand',exact:true}).click();
+  await expect(pages[0].locator('.duel-summary')).toContainText('Drew retains the House crown');
   const social=table.view(code).party!.social!,intervalId=social.id,hardDeadline=social.hardDeadline;
   table.advance(2000);
   await expect(pages[2].getByLabel('Social interval budget')).toContainText('Contest slot 2 / 2');
@@ -76,7 +77,7 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await pages[3].getByRole('button',{name:'Lock Steal',exact:true}).click();
   await expect(pages[0].locator('.deal-reveal')).toContainText('The full 100-chip pot enters the Vault');
   expect(table.view(code).party!.vault).toBe(200);
-  expect(table.view(code).players.map(p=>p.balance)).toEqual([1162,1200,900,1050]);conserved();
+  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,900,600]);conserved();
 
   table.advance(2000);
   await expect(pages[2].getByRole('heading',{name:'Place your bets',exact:true})).toBeVisible();
@@ -87,9 +88,10 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   expect(table.view(code).players[2]).toMatchObject({wager:200,reserved:200});
   expect(table.view(code).party!.chaos.inventories.find(inventory=>inventory.playerId===ids[2])!.cards.some(card=>card.id===earned.id)).toBe(false);
   table.server.manager.e.shoe=()=>scriptedShoe(['A','10','K','7']);
-  table.advance(21350);
+  table.advance(21000);
+  await pages[3].getByRole('button',{name:'Dealer Stand',exact:true}).click();
   await expect(pages[2].getByLabel('Round payouts')).toContainText('500 returned');
-  expect(table.view(code).players.map(p=>p.balance)).toEqual([1171,1200,1200,1050]);conserved();
+  expect(table.view(code).players.map(p=>p.balance)).toEqual([1250,1200,1200,600]);conserved();
 
   // Later rounds are deliberately sat out: no invented bankrolls or injected cards.
   table.server.manager.e.shoe=()=>scriptedShoe(['10','10','10','10','9','8','7','6','10']);
@@ -115,10 +117,11 @@ test('four guests carry funded claims, sequential contests, earned Chaos and a p
   await expect(pages[0].getByRole('button',{name:'Return to Lobby',exact:false})).toBeVisible();
   const final=table.view(code);
   expect(final.phase).toBe('RESULTS');expect(final.results!.winners).toEqual([ids[0]]);
-  expect(final.players.map(p=>p.balance)).toEqual([1371,1200,1200,1050]);
+  expect(final.players.map(p=>p.balance)).toEqual([1450,1200,1200,600]);
   expect(final.results!.standings.map(p=>p.id)).toEqual([ids[0],ids[1],ids[2],ids[3]]);
-  expect(room().dealerNet).toBe(821);
-  expect(final.players.reduce((sum,p)=>sum+p.balance,0)).toBe(4821);
+  expect(room().dealerNet).toBe(450);
+  expect(final.party!.bank.balance).toBe(7550);
+  expect(final.players.reduce((sum,p)=>sum+p.balance,0)).toBe(4450);
   expect(final.party).toMatchObject({vault:0,bonusReserve:400});
   expect(final.party!.dealHistory).toHaveLength(1);expect(final.party!.duelHistory).toHaveLength(1);
   expect(final.players.every(p=>p.committed===0&&p.reserved===0)).toBe(true);conserved();

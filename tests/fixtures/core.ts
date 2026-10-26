@@ -32,7 +32,7 @@ export function fixture(options:{players?:number;ranks?:Rank[];maxRooms?:number;
     const result=send(host,'match:start');if(result.status!=='ok')throw new Error(`Fixture start failed: ${result.code}`);
   };
   const advance=(ms:number)=>{now+=ms;manager.reconcile();};
-  const bet=(amount=100)=>{for(const actor of actors){const result=send(actor,'bet:submit',{amount});if(result.status!=='ok')throw new Error(`Fixture bet failed: ${result.code}`);}};
+  const bet=(amount=100)=>{for(const actor of actors){if(room().party?.houseId===actor)continue;const result=send(actor,'bet:submit',{amount});if(result.status!=='ok')throw new Error(`Fixture bet failed: ${result.code}`);}};
   const deal=()=>{advance(RULES.bettingMs+RULES.dealingMs);if(view().phase==='HAND_CHAOS')advance(5000);};
   return {manager,actors,host,view,room,command,send,start,advance,bet,deal};
 }

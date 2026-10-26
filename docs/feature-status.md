@@ -6,7 +6,7 @@ This describes the running code. Final hands-on review and deployment are separa
 | --- | --- | --- |
 | Classic | Private/public tables, 2–6 guests, three funded Blackjack rounds by default, with 1–20 host-selected rounds, safe-hit Call My Bluff, reactions, standings, replay | Fictional chips; Party feature switches remain off |
 | Party settings | 1–20 rounds, 2–6 seats, 100–100,000 starting chips (step 10), 5–120s betting/decision timers,feature switches,kicks,readiness reset and match locks | Overthrow needs House and duels; bounties need duels |
-| House | Sealed 50–900 auction,random highest-bid ties,separate bank commissions,overthrow/Last Stand | Dealer and host retain separate authority |
+| House | Sealed 50–900 auction; actual player dealer with server-controlled Hit/Stand, owner-private hole card, personal first-loss bond, finite Table Bank, 50% residual profits, overthrow/Last Stand | Fully collateralized wagers; Bank principal is not player wealth; host ownership stays separate |
 | Duels | RPS, Coin Flip, Connect 4, Bullet Chess; funded stakes, spectators, clocks and forfeits/refunds | One room contest at a time; intervals in matches of six or more rounds may fit two sequential contests |
 | Chaos | Seven earned effects, bottom-two ties, two-card inventory, funded multipliers, finite Emergency Fund, protected movement/redraw | One activation/opt-in per round; no bust undo or challenge rewrite |
 | Bounties | Owned contributions, three qualifying defenses, 85% challenger award/Vault remainder, unresolved refunds | Creation needs enough remaining intervals; once per target per interval |
@@ -23,6 +23,6 @@ The learner's four visual references guide the lounge, lobby, sealed-auction and
 
 Initial Classic gameplay on one computer was approved by the learner. Physical second-device game LAN testing remains an additional pending task. Final integrated user exploration and the learning wrap-up/app map remain unchecked. No hosting has been provisioned or verified.
 
-The user explicitly approved the House-as-dealer and Shadow Blackjack replacement rules on October 25. Those authoritative R4/R5 milestones are next and are **not implemented in this R1–R3 recovery milestone**. See [approved rules](../devpost/gameplay-revision-proposal.md).
+The user explicitly approved the House-as-dealer and Shadow Blackjack replacement rules on October 25. R4 is now implemented: finite backing, real dealer decisions and personal profit/loss. R5 is next; the existing Shadow Draw finale remains unchanged until its replacement is independently verified. See [approved rules](../devpost/gameplay-revision-proposal.md).
 
 See [voice feasibility](../devpost/voice-feasibility.md), [architecture](architecture.md) and [the build report](../devpost/build-report.md).

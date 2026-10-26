@@ -4,7 +4,7 @@ import {evaluate} from './cards.js';
 import {payout,dealerShouldHit,doubleReason} from './blackjack.js';
 import {CLAIM_RULES,settlePendingClaims,assertClaims,isDeferredClaim} from './claims.js';
 import {offerBluff,acceptBluff,cancelBluff} from './bluff.js';
-import {startAuction,closeAuction,submitBid,payCommission,distributeVault} from './house.js';
+import {startAuction,closeAuction,submitBid,distributeVault} from './house.js';
 import {openSocial,duelCommand,socialDeadline,closeSocial,assertDuels} from './duels.js';
 import {overthrowCommand} from './overthrow.js';
 import {grantChaos,resetChaosRound,chaosCommand,openPotTwist,closePotTwist,clearWagerEffect,assertChaos,canAffordNextRound} from './chaos.js';
@@ -16,6 +16,7 @@ import {defaultProfile,assertProfiles} from './profiles.js';
 import {defaultMatchStats} from './achievements.js';
 import {assertChat} from './chat.js';
 import {assertSettings,hasEligibleSocial} from './settings.js';
+import {isHouse,reserveLiability,releaseLiability,commitLiability,settleBankRound,releaseHouseBond,bankAvailable,assertHouseBank} from './house-bank.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 export function addEvent(r:Room,e:EngineOptions,kind:string,text:string,at:number,playerId?:string){
@@ -36,7 +37,8 @@ export function startRound(r:Room,e:EngineOptions,now:number){
   resetChaosRound(r);
   r.roundPayouts=[];
   r.decisionId=undefined;r.activePlayerId=undefined;r.dealer=[];r.dealerRevealed=false;r.shoe=[];r.cursor=0;r.discarded=[];r.bluff=null;
-  for(const p of r.players){p.hand=[];p.status=p.participating?'waiting':'observer';p.wager=0;p.wagerId=undefined;p.bluffUsed=false;p.doubled=false;p.chaosAffected=false;}
+  if(r.party)r.party.bank.dealerAutomated=false;
+  for(const p of r.players){p.hand=[];p.status=isHouse(r,p)?'dealer':p.participating?'waiting':'observer';p.wager=0;p.wagerId=undefined;p.bluffUsed=false;p.doubled=false;p.chaosAffected=false;}
   addEvent(r,e,'round',`Round ${r.round} · Place your wagers`,now);
 }
 export function startMatch(r:Room,e:EngineOptions,now:number){
@@ -55,29 +57,30 @@ export function freshDecision(r:Room,e:EngineOptions,now:number,duration:number=
 export function nextTurn(r:Room,e:EngineOptions,now:number){
   const next=r.players.find(p=>p.participating&&p.status==='playing');
   if(next){r.activePlayerId=next.id;freshDecision(r,e,now);return;}
-  r.activePlayerId=undefined;r.decisionId=undefined;r.phase='DEALER_TURN';r.dealerRevealed=true;r.deadline=now+RULES.dealerMs;
+  r.activePlayerId=undefined;r.decisionId=undefined;r.phase='DEALER_TURN';
+  const house=r.party?.houseId?r.players.find(p=>p.id===r.party!.houseId):undefined;
+  if(house?.connected&&!house.departed&&!r.party!.bank.dealerAutomated){r.activePlayerId=house.id;r.decisionId=e.id();r.deadline=now+r.turnSeconds*1000;}else{if(r.party)r.party.bank.dealerAutomated=true;r.dealerRevealed=true;r.deadline=now+RULES.dealerMs;}
 }
 export function finishHit(r:Room,e:EngineOptions,now:number){
   const p=active(r),v=evaluate(p.hand);
   if(v.total>=21){p.status=v.bust?'bust':'stood';nextTurn(r,e,now);}else freshDecision(r,e,now);
 }
 export function settleRound(r:Room,e:EngineOptions,now:number){
+  if(r.party?.bank.rounds.some(item=>item.roundId===r.roundId))return;
   r.dealerRevealed=true;
-  for(const p of [...r.players].sort((a,b)=>a.seat-b.seat)){if(!p.wagerId||!p.wager)continue;
-    const result=payout(p.hand,r.dealer,p.wager);
-    if(settle(p.account,p.wagerId,result.returned)){
-      r.dealerNet+=result.returned-p.wager;p.status=result.outcome;
-      const houseCommission=payCommission(r,p,result.profit);r.roundPayouts.push({playerId:p.id,stake:p.wager,returned:result.returned,profit:result.profit,houseCommission});
-      addEvent(r,e,'settlement',`${p.name}: ${result.outcome} · ${result.profit>=0?'+':''}${result.profit} chips`,now,p.id);
-      if(houseCommission)addEvent(r,e,'commission',`Dealer bank pays ${houseCommission} extra chips to the House. ${p.name} keeps the full ${result.returned}-chip return.`,now,r.party!.houseId!);
-    }
-  }
+  const outcomes=[...r.players].sort((a,b)=>a.seat-b.seat).filter(p=>p.wagerId&&p.wager&&!isHouse(r,p)).map(p=>({p,result:payout(p.hand,r.dealer,p.wager)}));
+  if(r.party){const existing=r.party.bank.rounds.some(item=>item.roundId===r.roundId);if(!existing){
+    for(const {p,result} of outcomes){requireRule(settle(p.account,p.wagerId!,result.returned),'DUPLICATE_ROUND_SETTLEMENT');p.status=result.outcome;r.roundPayouts.push({playerId:p.id,stake:p.wager,returned:result.returned,profit:result.profit,houseCommission:0});addEvent(r,e,'settlement',`${p.name}: ${result.outcome} · ${result.profit>=0?'+':''}${result.profit} chips`,now,p.id);}
+    const record=settleBankRound(r,outcomes.reduce((n,item)=>n+Math.max(0,-item.result.profit),0),outcomes.reduce((n,item)=>n+Math.max(0,item.result.profit),0))!;
+    addEvent(r,e,'bank',`Dealer net ${record.net>=0?'+':''}${record.net}. Bond loss ${record.bondLoss}; Bank loss ${record.bankLoss}; Bank recovery ${record.recovery}; House earnings ${record.houseEarnings}.`,now,r.party.houseId??undefined);
+  }}else for(const {p,result} of outcomes)if(settle(p.account,p.wagerId!,result.returned)){r.dealerNet+=result.profit;p.status=result.outcome;r.roundPayouts.push({playerId:p.id,stake:p.wager,returned:result.returned,profit:result.profit,houseCommission:0});addEvent(r,e,'settlement',`${p.name}: ${result.outcome} · ${result.profit>=0?'+':''}${result.profit} chips`,now,p.id);}
   settlePendingClaims(r,e,now);
   r.phase='ROUND_RESULT';r.deadline=now+RULES.resultMs;r.activePlayerId=undefined;r.decisionId=undefined;
   if(r.settings.chaos)grantChaos(r,e,now);
 }
 export function results(r:Room,e:EngineOptions,now:number,reason?:string){
   closeSocial(r);
+  releaseHouseBond(r,`${r.matchId}:final-bond-release`);
   refundBounties(r,e,now);
   const vault=r.party?.vault??0;distributeVault(r);if(vault)addEvent(r,e,'vault',`The ${vault}-chip Vault is shared among all original participants, with remainder chips in seat order.`,now);
   const standings=r.players.filter(p=>p.participating).map(p=>({id:p.id,name:p.name,balance:p.account.balance,bluffWins:p.bluffWins,bluffLosses:p.bluffLosses})).sort((a,b)=>b.balance-a.balance);
@@ -87,16 +90,18 @@ export function results(r:Room,e:EngineOptions,now:number,reason?:string){
   addEvent(r,e,'results',reason?`Match ended early: ${reason}`:`${r.roundLimit} rounds. One table. Final standings are in.`,now);
 }
 export function roundBoundary(r:Room,e:EngineOptions,now:number){
+  if(r.party?.houseId&&r.players.find(p=>p.id===r.party!.houseId)?.departed){releaseHouseBond(r,`${r.matchId}:${r.roundId}:departed-bond-release`);r.party.houseId=null;}
   if(r.terminationConfirmed){results(r,e,now,'Too few connected players after the recovery window.');return;}
   if(r.round>=r.roundLimit){refundBounties(r,e,now);if(!startShadow(r,e,now))results(r,e,now);return;}
+  if(r.party&&bankAvailable(r)<1){results(r,e,now,'The finite Table Bank cannot back another wager.');return;}
   if(connected(r).length<2){r.phase='WAITING_FOR_PLAYERS';r.deadline=null;return;}
-  if(!canAffordNextRound(r)){results(r,e,now,'Fewer than two connected players can afford the minimum wager.');return;}
+  if(!canAffordNextRound(r)){results(r,e,now,r.party?'No connected bettor can fund the minimum wager.':'Fewer than two connected players can afford the minimum wager.');return;}
   if(r.party&&r.round>0&&r.party.socialRound<r.round&&hasEligibleSocial(r)){openSocial(r,e,now);return;}
   startRound(r,e,now);
 }
 function commitBetsAndDeal(r:Room,e:EngineOptions,at:number){
   let wagers=0;
-  for(const p of r.players){if(p.wagerId&&p.wager){commit(p.account,p.wagerId);p.status='playing';wagers++;}else p.status=p.participating?'skipped':'observer';}
+  for(const p of r.players){if(p.wagerId&&p.wager){commit(p.account,p.wagerId);commitLiability(r,p);p.status='playing';wagers++;}else p.status=isHouse(r,p)?'dealer':p.participating?'skipped':'observer';}
   if(!wagers){addEvent(r,e,'round','No wagers were placed.',at);settleRound(r,e,at);return;}
   r.shoe=e.shoe();r.cursor=0;
   for(let pass=0;pass<2;pass++){for(const p of r.players)if(p.status==='playing')p.hand.push(draw(r));r.dealer.push(draw(r));}
@@ -116,7 +121,7 @@ export function deadlineTransition(r:Room,e:EngineOptions,at:number){
     case 'PLAYER_TURN': {const p=active(r);clearOrdinaryHit(r,p.id);p.status='stood';addEvent(r,e,'timeout',`${p.name} automatically stands.`,at,p.id);nextTurn(r,e,at);break;}
     case 'BLUFF_OFFER': cancelBluff(r,e,at,'expired');addEvent(r,e,'bluff','Nobody called. Reserved chips returned; no card drawn.',at);break;
     case 'BLUFF_REVEAL': if(r.bluff?.settlement==='pending'&&isDeferredClaim(r.bluff.claimType!))freshDecision(r,e,at,Math.max(5000,r.pausedRemaining));else finishHit(r,e,at);break;
-    case 'DEALER_TURN': {if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
+    case 'DEALER_TURN': {if(r.party)r.party.bank.dealerAutomated=true;r.activePlayerId=undefined;r.decisionId=undefined;r.dealerRevealed=true;if(dealerShouldHit(r.dealer)){r.dealer.push(draw(r));r.deadline=at+RULES.dealerMs;}else settleRound(r,e,at);break;}
     case 'ROUND_RESULT': roundBoundary(r,e,at);break;
     case 'DEAL': dealsDeadline(r,e,at);break;
     case 'SHADOW_DRAW':case 'SHADOW_CLAIM':case 'SHADOW_CHALLENGE':case 'SHADOW_RESULT': if(shadowDeadline(r,e,at))results(r,e,at);break;
@@ -147,16 +152,22 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
     }
     case 'bet:submit': case 'bet:withdraw': {
       requireRule(r.phase==='BETTING'&&c.bettingId===r.bettingId,'STALE_BETTING','Betting is closed or this round has changed.');
-      requireRule(p.participating,'NOT_PARTICIPATING');
+      requireRule(p.participating,'NOT_PARTICIPATING');requireRule(!isHouse(r,p),'HOUSE_CANNOT_BET','The House plays the dealer hand.');
       clearWagerEffect(r,p);
-      if(c.type==='bet:submit'){const amount=c.payload?.amount;requireRule(validBetAmount(amount),'INVALID_AMOUNT','Choose a positive whole-chip wager you can fund.');const id=p.wagerId??`${r.roundId}:${p.id}:blackjack`;reserve(p.account,id,amount);p.wagerId=id;p.wager=amount;}
-      else {if(p.wagerId)release(p.account,p.wagerId);p.wager=0;p.wagerId=undefined;}
+      if(c.type==='bet:submit'){const amount=c.payload?.amount;requireRule(validBetAmount(amount),'INVALID_AMOUNT','Choose a positive whole-chip wager you can fund.');const id=p.wagerId??`${r.roundId}:${p.id}:blackjack`;reserveLiability(r,p,amount);reserve(p.account,id,amount);p.wagerId=id;p.wager=amount;}
+      else {releaseLiability(r,p);if(p.wagerId)release(p.account,p.wagerId);p.wager=0;p.wagerId=undefined;}
       break;
+    }
+    case 'dealer:hit':case 'dealer:stand':{
+      requireRule(r.mode==='PARTY'&&r.party&&isHouse(r,p),'NOT_HOUSE');requireRule(r.phase==='DEALER_TURN'&&r.activePlayerId===p.id&&!r.party.bank.dealerAutomated,'DEALER_DECISION_CLOSED');requireRule(c.decisionId===r.decisionId&&r.deadline!==null&&now<r.deadline,'STALE_DECISION');
+      const value=evaluate(r.dealer);requireRule(!value.bust&&value.total<21,'DEALER_HAND_FINISHED');
+      if(c.type==='dealer:hit'){r.dealer.push(draw(r));const next=evaluate(r.dealer);if(next.bust||next.total===21)settleRound(r,e,now);else{r.decisionId=e.id();r.deadline=now+r.turnSeconds*1000;}}
+      else settleRound(r,e,now);break;
     }
     case 'turn:double': {
       const reason=doubleReason(r,p);requireRule(!reason,'DOUBLE_UNAVAILABLE',reason??undefined);
       requireRule(c.decisionId===r.decisionId,'STALE_DECISION');
-      increaseEscrow(p.account,p.wagerId!,p.wager);p.wager*=2;p.doubled=true;
+      reserveLiability(r,p,p.wager*2);increaseEscrow(p.account,p.wagerId!,p.wager);p.wager*=2;p.doubled=true;
       clearOrdinaryHit(r,p.id);p.hand.push(draw(r));p.status=evaluate(p.hand).bust?'bust':'stood';
       addEvent(r,e,'double',`${p.name} doubles to ${p.wager} funded chips, takes exactly one card, and stands.`,now,p.id);nextTurn(r,e,now);break;
     }
@@ -169,7 +180,7 @@ export function gameCommand(r:Room,p:Player,c:Command,e:EngineOptions,now:number
   }
 }
 export function assertRoom(r:Room){
-  assertSettings(r);
+  assertSettings(r);assertHouseBank(r);
   assertClaims(r);
   assertProfiles(r);assertChat(r);
   requireRule(Number.isSafeInteger(r.roundLimit)&&r.roundLimit>=1&&r.roundLimit<=20&&typeof r.finaleEnabled==='boolean'&&(r.mode==='PARTY'||!r.finaleEnabled),'ROUND_LIMIT_INVARIANT');
@@ -180,7 +191,7 @@ export function assertRoom(r:Room){
   assertShadow(r);
   let total=0;
   for(const p of r.players){requireRule(Number.isSafeInteger(p.lobbyWins)&&p.lobbyWins>=0,'LOBBY_WINS_INVARIANT');assertAccount(p.account);if(p.participating)total+=p.account.balance+Object.values(p.account.escrows).reduce((a,b)=>a+b,0);}
-  if(r.matchId)requireRule(total+(r.party?.vault??0)+(r.party?.bonusReserve??0)===r.initialChips+(r.party?.initialBonusReserve??0)+r.dealerNet,'LEDGER_INVARIANT');
+  if(r.matchId)requireRule(r.party?total+r.party.bank.balance+r.party.vault+r.party.bonusReserve===r.initialChips+r.party.bank.initial+r.party.initialBonusReserve:total===r.initialChips+r.dealerNet,'LEDGER_INVARIANT');
   if(r.party){
     for(const amount of [r.party.vault,r.party.bonusReserve,r.party.initialBonusReserve])requireRule(Number.isSafeInteger(amount)&&amount>=0,'PARTY_LEDGER_INVARIANT');
     requireRule(new Set(r.party.transfers.map(t=>t.id)).size===r.party.transfers.length,'DUPLICATE_PARTY_TRANSFER');

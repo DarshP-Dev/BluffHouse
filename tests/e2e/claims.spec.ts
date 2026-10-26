@@ -10,7 +10,7 @@ async function startParty(table: TableFixture, ranks: Rank[]) {
   await pages[0].getByRole('button', { name: 'Party', exact: true }).click();
   await expect(pages[0].getByRole('checkbox', { name: 'Shadow Draw finale', exact: false })).toBeChecked();
   // Keep the added Blackjack rules; disable unrelated systems through the real host controls.
-  for (const label of ['House auction and commissions', 'House overthrow', 'Direct duels', 'Bounties', 'Chaos cards', 'Split or Steal deals']) await pages[0].getByRole('checkbox', { name: label, exact: true }).uncheck();
+  for (const label of ['House auction and player dealer', 'House overthrow', 'Direct duels', 'Bounties', 'Chaos cards', 'Split or Steal deals']) await pages[0].getByRole('checkbox', { name: label, exact: true }).uncheck();
   await pages[0].getByRole('button', { name: 'Apply Room Settings', exact: true }).click();
   await expect.poll(() => table.view(code).settings.house).toBe(false);
   for (const page of pages) await page.getByRole('button', { name: 'Ready Up', exact: true }).click();

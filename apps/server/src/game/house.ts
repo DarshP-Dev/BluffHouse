@@ -1,5 +1,6 @@
 import type {Command} from '@bluff-house/shared';
 import {reserve,release,commit,settle,credit} from './ledger.js';
+import {initialBank,takeHouseBond} from './house-bank.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 
 const bidKey=(r:Room,p:Player)=>`${r.matchId}:${r.party!.auction.id}:${p.id}:house-bid`;
@@ -7,7 +8,7 @@ const bidKey=(r:Room,p:Player)=>`${r.matchId}:${r.party!.auction.id}:${p.id}:hou
 export function startAuction(r:Room,e:EngineOptions,now:number){
   const initialBonusReserve=r.players.filter(p=>p.participating).length*100;
   const enabled=r.settings.house;
-  r.party={bounties:[],houseId:null,houseSinceRound:0,overthrowHistory:[],vault:0,bonusReserve:initialBonusReserve,initialBonusReserve,vaultDistributed:false,transfers:[],social:null,socialRound:0,duelHistory:[],dealHistory:[],shadow:null,chaos:{inventories:{},usedRound:{},emergencyUsed:[],grantedRounds:[],multipliers:{},potTwist:null,handWindow:null,ordinaryHits:{}},auction:{id:e.id(),deadline:now+(enabled?20000:0),status:enabled?'open':'revealed',bids:{},winnerId:null,winningBid:enabled?null:0}};
+  r.party={bank:initialBank(r),bounties:[],houseId:null,houseSinceRound:0,overthrowHistory:[],vault:0,bonusReserve:initialBonusReserve,initialBonusReserve,vaultDistributed:false,transfers:[],social:null,socialRound:0,duelHistory:[],dealHistory:[],shadow:null,chaos:{inventories:{},usedRound:{},emergencyUsed:[],grantedRounds:[],multipliers:{},potTwist:null,handWindow:null,ordinaryHits:{}},auction:{id:e.id(),deadline:now+(enabled?20000:0),status:enabled?'open':'revealed',bids:{},winnerId:null,winningBid:enabled?null:0}};
   r.phase=enabled?'HOUSE_AUCTION':'BETTING';r.deadline=enabled?r.party.auction.deadline:null;r.roundId=undefined;r.bettingId=undefined;r.decisionId=undefined;r.activePlayerId=undefined;
   for(const p of r.players)p.status=p.participating?'waiting':'observer';
 }
@@ -16,6 +17,7 @@ export function submitBid(r:Room,p:Player,c:Command){
   requireRule(r.mode==='PARTY'&&r.party&&r.phase==='HOUSE_AUCTION'&&r.party.auction.status==='open','AUCTION_CLOSED');
   requireRule(p.participating,'NOT_PARTICIPATING');requireRule(c.auctionId===r.party.auction.id,'STALE_AUCTION');
   const amount=c.payload?.amount;requireRule(typeof amount==='number'&&Number.isSafeInteger(amount)&&(amount===0||(amount>=50&&amount<=900&&amount%50===0)),'INVALID_BID','Bid 50–900 chips in steps of 50, or pass.');
+  requireRule(amount===0||amount<p.account.balance,'BID_REQUIRES_BOND','A winning bid must leave at least one personal chip for the House bond.');
   if(amount===0)release(p.account,bidKey(r,p));else reserve(p.account,bidKey(r,p),amount);
   r.party.auction.bids[p.id]=amount;
 }
@@ -33,18 +35,7 @@ export function closeAuction(r:Room,e:EngineOptions){
     else release(p.account,id);
   }
   party.houseId=winner?.id??null;party.auction.winnerId=party.houseId;party.auction.winningBid=highest;party.auction.status='revealed';
-}
-
-/** Called in settled player-seat order. It never reduces the player's payout. */
-export function payCommission(r:Room,p:Player,profit:number):number{
-  const party=r.party;if(!party?.houseId||p.id===party.houseId||profit<=0)return 0;
-  const id=`${r.roundId}:${p.id}:house-commission`;
-  if(party.transfers.some(t=>t.id===id))return 0;
-  const used=party.transfers.filter(t=>t.kind==='commission'&&t.roundId===r.roundId).reduce((n,t)=>n+t.amount,0);
-  const amount=Math.min(Math.floor(3*profit/100),Math.max(0,50-used));if(!amount)return 0;
-  const house=r.players.find(player=>player.id===party.houseId&&player.participating);requireRule(house,'HOUSE_MISSING');
-  if(!credit(house.account,id,amount))return 0;
-  r.dealerNet+=amount;party.transfers.push({id,kind:'commission',amount,from:'DEALER_BANK',to:house.id,roundId:r.roundId});return amount;
+  if(winner)takeHouseBond(r,winner.id,party.auction.id);
 }
 
 /** Interim funded finale and early-ending fallback; absent participants keep shares. */

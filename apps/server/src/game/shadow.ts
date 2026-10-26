@@ -1,4 +1,5 @@
 import type {Command,ShadowClaim,ShadowView} from '@bluff-house/shared';
+import {validBondReservation} from './house-bank.js';
 import {evaluate} from './cards.js';
 import {shadowScoring,shadowWinners,settleShadowVault,shadowVaultThieves} from './vault.js';
 import {requireRule,type Room,type Player,type EngineOptions,type ShadowState} from './state.js';
@@ -27,7 +28,7 @@ export function startShadow(r:Room,e:EngineOptions,now:number):boolean{
   if(r.mode!=='PARTY'||r.phase!=='ROUND_RESULT'||!r.finaleEnabled||!party||party.shadow||party.vaultDistributed||party.vault<=0||r.terminationConfirmed||r.round<r.roundLimit)return false;
   const entrants=r.players.filter(p=>p.participating&&p.connected&&!p.departed).sort((a,b)=>a.seat-b.seat);
   if(entrants.length<2)return false;
-  requireRule(!party.social&&!r.players.some(p=>Object.keys(p.account.escrows).length||Object.keys(p.account.reservations).length),'LIVE_SHADOW_ENTRY_OBLIGATION');
+  requireRule(!party.social&&!r.players.some(p=>Object.keys(p.account.escrows).length||Object.keys(p.account.reservations).some(key=>!validBondReservation(r,p,key))),'LIVE_SHADOW_ENTRY_OBLIGATION');
   const shadow:ShadowState={id:e.id(),status:'drawing',pot:party.vault,entries:entrants.map(p=>({playerId:p.id,seat:p.seat,hand:[],locked:false,drew:false,revealed:false,claimDone:false})),shoe:e.shoe(),cursor:0,activePlayerId:null,decisionId:null,deadline:null,claim:null,claims:[],winnerIds:[],awards:[],fallback:false,vaultThiefIds:[]};
   for(let pass=0;pass<2;pass++)for(const p of shadow.entries)p.hand.push(draw(shadow));
   party.shadow=shadow;r.activePlayerId=undefined;r.decisionId=undefined;r.bettingId=undefined;

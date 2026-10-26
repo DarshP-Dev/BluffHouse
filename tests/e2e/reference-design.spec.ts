@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures/browser.js';
+import { test, expect, scriptedShoe } from '../fixtures/browser.js';
 import type { Page, Locator } from '@playwright/test';
 
 const desktop = { width: 1672, height: 941 };
@@ -122,7 +122,8 @@ test('reference lounge, lobby, sealed auction and live dashboard retain usable r
   await expect(page.getByRole('textbox', { name: 'Message to this room', exact: true })).toHaveValue(chatDraft);
   await expect(page.getByRole('textbox', { name: 'Message to this room', exact: true })).toHaveAttribute('data-persistent-composer', 'yes');
   await expect(page.getByRole('textbox', { name: 'Message to this room', exact: true })).toBeFocused();
-  for (const player of pages) await player.getByRole('button', { name: /^Place Bet/ }).click();
+  table.server.manager.e.shoe=()=>scriptedShoe(['10','10','10','10','6','8','9','7','3','10','2']);
+  for (const index of [0,2,3]) await pages[index].getByRole('button', { name: /^Place Bet/ }).click();
   table.advance(26000);
   await expect(page.getByRole('heading', { name: 'Player turns', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Hit/ })).toBeEnabled();
@@ -130,7 +131,9 @@ test('reference lounge, lobby, sealed auction and live dashboard retain usable r
   await expect(page.locator('.felt-table .local-seat .playing-card')).toHaveCount(2);
   await leftToRight(page.locator('.dashboard-left'), page.locator('.game-column'), page.locator('.table-rail'));
   await expect(page.getByRole('region', { name: 'Room chat', exact: true })).toHaveCount(1);
-  await expect(page.locator('.felt-table .player-seat')).toHaveCount(4);
+  await expect(page.locator('.felt-table .player-seat')).toHaveCount(3);
+  await expect(pages[1].getByLabel('Dealer hand',{exact:true}).getByLabel('7 of spades',{exact:true})).toBeVisible();
+  await expect(page.getByLabel('Dealer hand',{exact:true}).getByLabel('Face-down card',{exact:true})).toHaveCount(1);
   await expect(page.locator('.rival-hands')).toHaveCount(0);
   await tableFirstDecision(page, page.getByRole('button', { name: /^Hit/ }));
   await tableFirstDecision(page, page.getByRole('button', { name: /^Call My Bluff/ }));
@@ -155,8 +158,8 @@ test('reference lounge, lobby, sealed auction and live dashboard retain usable r
   expect(table.view(code).players[0].value?.total).toBe(19);
   await page.getByRole('button', { name: /^Stand/ }).click();
   await expect.poll(() => table.view(code).players[0].status).toBe('stood');
-  await pages[1].setViewportSize(desktop);
-  await pages[1].getByRole('button', { name: /^Call My Bluff/ }).click();
+  await pages[2].setViewportSize(desktop);
+  await pages[2].getByRole('button', { name: /^Call My Bluff/ }).click();
   await page.setViewportSize(desktop);
   const accept = page.getByRole('button', { name: /^Accept Challenge/ });
   await expect(accept).toBeEnabled();

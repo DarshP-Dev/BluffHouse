@@ -51,7 +51,7 @@ async function step(h:Harness,t:Table):Promise<boolean>{
   switch(v.phase){
     case 'BETTING':{
       if(t.actedRounds.has(v.round))return false;
-      for(const p of t.people)await send(h,p,'bet:submit',{amount:50});t.actedRounds.add(v.round);
+      for(const p of t.people)if(p.id!==v.party?.houseId)await send(h,p,'bet:submit',{amount:50});t.actedRounds.add(v.round);
       // Use naturally earned cards only; neither shoes nor RNG are replaced.
       for(const p of t.people){const state=h.server.manager.snapshot(p.id)!,held=state.party?.chaos.inventories.find(i=>i.playerId===p.id)?.cards??[],card=state.party?.chaos.actions.find(a=>a.eligible&&held.some(c=>c.id===a.cardId&&(c.kind==='DOUBLE_DOWN'||c.kind==='POT_TWIST')));if(card){await send(h,p,'chaos:activate',{cardId:card.cardId});t.chaosActivations++;}}
       return true;
@@ -92,7 +92,8 @@ async function finish(h:Harness,tables:Table[]){
   for(const t of tables){
     const v=t.view(),r=h.server.manager.roomFor(t.people[0]!.id)!;expect(v.phase).toBe('RESULTS');expect(v.round).toBe(t.party?6:3);expect(t.seenShoes.size).toBe(t.party?6:3);
     expect(v.players.every(p=>p.committed===0&&p.reserved===0)).toBe(true);expect(v.results!.standings).toHaveLength(t.people.length);
-    expect(v.players.reduce((sum,p)=>sum+p.balance,0)+(v.party?.bonusReserve??0)).toBe(r.initialChips+(v.party?.initialBonusReserve??0)+r.dealerNet);
+    if(v.party)expect(v.players.reduce((sum,p)=>sum+p.balance,0)+v.party.bank.balance+v.party.bonusReserve+v.party.vault).toBe(r.initialChips+v.party.bank.initial+v.party.initialBonusReserve);
+    else expect(v.players.reduce((sum,p)=>sum+p.balance,0)).toBe(r.initialChips+r.dealerNet);
     if(t.party){expect(v.party!.duelHistory).toHaveLength(1);expect(v.party!.dealHistory).toHaveLength(1);expect(v.party!.shadow!.status).toBe('settled');expect(v.party!.vault).toBe(0);expect(v.pendingClaims).toEqual([]);}
     const oldMatch=v.matchId;await send(h,t.people[0]!,'results:return');expect(t.view().phase).toBe('LOBBY');expect(t.view().players.every(p=>p.balance===1000&&!p.ready&&p.bluffWins===0)).toBe(true);expect(t.view().claimOutcomes).toEqual([]);
     for(const p of t.people)await send(h,p,'lobby:ready',{ready:true});await send(h,t.people[0]!,'match:start');expect(t.view().matchId).not.toBe(oldMatch);assertRoom(h.server.manager.roomFor(t.people[0]!.id)!);

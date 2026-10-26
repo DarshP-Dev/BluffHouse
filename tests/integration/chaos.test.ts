@@ -10,7 +10,7 @@ function betting(players=3,ranks?:NonNullable<Parameters<typeof fixture>[0]>['ra
 let serial=0;
 function card(f:F,seat:number,kind:ChaosKind){const id=`injected-chaos-${++serial}`;f.room().party!.chaos.inventories[f.actors[seat]!]=[{id,kind}];return id;}
 function activate(f:F,seat:number,id:string){return f.send(f.actors[seat]!,'chaos:activate',{cardId:id});}
-function balances(f:F,amounts:number[]){const r=f.room();amounts.forEach((amount,i)=>{r.dealerNet+=amount-r.players[i]!.account.balance;r.players[i]!.account.balance=amount;});assertRoom(r);}
+function balances(f:F,amounts:number[]){const r=f.room();amounts.forEach((amount,i)=>{r.party!.bank.balance-=amount-r.players[i]!.account.balance;r.players[i]!.account.balance=amount;});r.dealerNet=r.party!.bank.initial-r.party!.bank.balance;assertRoom(r);}
 function reserveBonus(f:F,remaining:number){const r=f.room(),p=r.players[0]!,paid=r.party!.bonusReserve-remaining;p.account.balance+=paid;r.party!.bonusReserve=remaining;r.party!.transfers.push({id:`test-bonus-${++serial}`,kind:'bonus',amount:paid,from:'BONUS_RESERVE',to:p.id});assertRoom(r);}
 function finish(f:F){for(let n=0;n<30&&f.view().phase!=='ROUND_RESULT';n++){const v=f.view();if(v.phase==='PLAYER_TURN')expect(f.send(v.activePlayerId!,'turn:stand').status).toBe('ok');else f.advance(v.deadline!-v.serverTime);}expect(f.view().phase).toBe('ROUND_RESULT');assertRoom(f.room());}
 
@@ -28,9 +28,9 @@ describe('funded monetary Chaos activation',()=>{
     const after=structuredClone(f.room());expect(f.manager.command(f.actors[1]!,cmd)).toEqual(ack);expect(f.room()).toEqual(after);f.deal();finish(f);
     expect(f.view().roundPayouts[1]).toMatchObject({stake:250*factor,returned:625*factor,profit:375*factor});expect(f.view().players[1]!.balance).toBe(1000+375*factor);assertRoom(f.room());
   });
-  it('calculates House commission from actual multiplied natural profit without reducing the return',()=>{
-    const f=fixture({mode:'PARTY',ranks:['10','A','10','7','K','7']});f.start();expect(f.send(f.host,'house:bid',{amount:50}).status).toBe('ok');f.advance(22000);f.bet(250);expect(activate(f,1,card(f,1,'TRIPLE_DOWN')).status).toBe('ok');f.deal();finish(f);
-    expect(f.view().roundPayouts[1]).toMatchObject({stake:750,returned:1875,profit:1125,houseCommission:33});expect(f.view().players.map(p=>p.balance)).toEqual([983,2125]);expect(f.room().dealerNet).toBe(1158);assertRoom(f.room());
+  it('funds multiplied natural profit from the House bond and finite Bank without reducing the return',()=>{
+    const f=fixture({mode:'PARTY',ranks:['A','10','K','7']});f.start();expect(f.send(f.host,'house:bid',{amount:50}).status).toBe('ok');f.advance(22000);f.bet(250);expect(activate(f,1,card(f,1,'TRIPLE_DOWN')).status).toBe('ok');f.deal();finish(f);
+    expect(f.view().roundPayouts[0]).toMatchObject({stake:750,returned:1875,profit:1125,houseCommission:0});expect(f.view().players.map(p=>p.balance)).toEqual([700,2125]);expect(f.room().dealerNet).toBe(875);expect(f.view().party!.bank.rounds.at(-1)).toMatchObject({bondLoss:250,bankLoss:875});assertRoom(f.room());
   });
   it('rejects unfunded multiplication atomically and retains both the held card and activation allowance',()=>{
     const f=betting();f.bet(250);reserve(f.room().players[0]!.account,'other-funds',600);const id=card(f,0,'TRIPLE_DOWN'),before=structuredClone(f.room());expect(activate(f,0,id).status).toBe('rejected');expect(f.room()).toEqual(before);assertRoom(f.room());

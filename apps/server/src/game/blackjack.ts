@@ -1,5 +1,6 @@
 import { RULES,validBetAmount,type Card } from '@bluff-house/shared';
 import { evaluate } from './cards.js';
+import {maximumBackedBet} from './house-bank.js';
 import {available} from './ledger.js';
 import type {Room,Player} from './state.js';
 
@@ -45,5 +46,6 @@ export function doubleReason(r:Room,p:Player):string|null {
   if(p.chaosAffected||r.party?.chaos.multipliers[p.id])return 'Double before any Chaos involvement; multipliers cannot stack.';
   if(!p.wagerId||!validBetAmount(p.wager)||p.account.escrows[p.wagerId]!==p.wager)return 'Double requires your funded original Blackjack wager.';
   if(available(p.account)<p.wager)return 'You need one equal extra stake available to double.';
+  if(r.party&&p.wager*2>maximumBackedBet(r,p,true))return 'The finite Table Bank cannot back your doubled wager.';
   return null;
 }

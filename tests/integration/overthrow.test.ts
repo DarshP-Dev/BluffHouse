@@ -1,9 +1,9 @@
 import {describe,expect,it,vi} from 'vitest';
 import {RULES,type DuelGame,type RpsChoice} from '@bluff-house/shared';
 import {assertRoom} from '../../apps/server/src/game/engine.js';
-import {payCommission} from '../../apps/server/src/game/house.js';
+import {releaseHouseBond,takeHouseBond} from '../../apps/server/src/game/house-bank.js';
 import {resolveBallot} from '../../apps/server/src/game/overthrow.js';
-import {fixture} from '../fixtures/core.js';
+import {fixture,shoe} from '../fixtures/core.js';
 
 type F=ReturnType<typeof fixture>;
 function social(players=3,house=0,randomIndex:(length:number)=>number=()=>0){
@@ -20,7 +20,7 @@ function select(f:F,game:DuelGame='RPS',coinSide='HEADS'){
 }
 function threshold(f:F){const b=open(f);for(const id of b.eligibleVoterIds.slice(0,b.requiredVotes))vote(f,id);expect(f.view().phase).toBe('LAST_STAND_CHOICE');return f.view().party!.social!.ballot!;}
 function choices(f:F,challenger:RpsChoice,house:RpsChoice){const d=f.view().party!.social!.duel!;expect(f.send(d.inviterId,'duel:choose',{choice:challenger}).status).toBe('ok');expect(f.send(d.defenderId,'duel:choose',{choice:house}).status).toBe('ok');}
-function clean(f:F){expect(f.room().players.flatMap(p=>Object.values(p.account.reservations))).toEqual([]);expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);assertRoom(f.room());}
+function clean(f:F){const bond=f.room().party!.bank.bond;for(const player of f.room().players)expect(player.account.reservations).toEqual(bond.ownerId===player.id&&bond.amount?{[bond.reservationId!]:bond.amount}:{});expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);assertRoom(f.room());}
 
 describe('frozen House ballots and admission ownership',()=>{
   it.each([[2,1],[3,2],[4,3],[5,3],[6,4]])('requires the ceiling threshold with %s participants',(players,required)=>{
@@ -90,24 +90,30 @@ describe('frozen House ballots and admission ownership',()=>{
     const f=social(3,1);expect(f.view().hostId).toBe(f.host);expect(f.view().party!.houseId).toBe(f.actors[1]);open(f,f.host);vote(f,f.host);vote(f,f.actors[2]!);
     const before=structuredClone(f.room());expect(f.send(f.host,'house:choose',{game:'RPS'}).status).toBe('rejected');expect(f.room()).toEqual(before);select(f);expect(f.view().hostId).toBe(f.host);clean(f);
     const g=social();g.room().party!.houseSinceRound=g.view().round;const current=structuredClone(g.room());expect(g.send(g.actors[1]!,'house:ballot').status).toBe('rejected');expect(g.room()).toEqual(current);
-    g.room().party!.houseId=null;expect(g.send(g.actors[1]!,'house:ballot').status).toBe('rejected');clean(g);
+    releaseHouseBond(g.room(),'test-no-house-release');g.room().party!.houseId=null;expect(g.send(g.actors[1]!,'house:ballot').status).toBe('rejected');clean(g);
   });
 });
 
 describe('zero-stake Last Stand and crown settlement',()=>{
   it('allows insolvent challengers and House to play without any escrow, fee or bank funding',()=>{
-    const f=social();for(const p of f.room().players){f.room().dealerNet-=p.account.balance;p.account.balance=0;}const before=f.view().players.map(p=>p.balance),vault=f.view().party!.vault,reserve=f.view().party!.bonusReserve,bank=f.room().dealerNet;
+    const f=social();releaseHouseBond(f.room(),'test-insolvent-release');for(const p of f.room().players){f.room().party!.bank.balance+=p.account.balance;p.account.balance=0;}f.room().dealerNet=f.room().party!.bank.initial-f.room().party!.bank.balance;takeHouseBond(f.room(),f.host,'test-insolvent-entry');const before=f.view().players.map(p=>p.balance),vault=f.view().party!.vault,reserve=f.view().party!.bonusReserve,bank=f.room().dealerNet;
     threshold(f);const d=select(f);expect(d).toMatchObject({purpose:'LAST_STAND',amount:0,inviterId:f.actors[1],defenderId:f.host});clean(f);
     for(let n=0;n<3;n++)choices(f,'ROCK','SCISSORS');expect(f.view().party!.houseId).toBe(f.actors[1]);expect(f.view().players.map(p=>p.balance)).toEqual(before);expect(f.view().party).toMatchObject({vault,bonusReserve:reserve});expect(f.room().dealerNet).toBe(bank);clean(f);
   });
-  it('transfers the crown once on a challenger win, resets tenure and directs the next eligible commission to that winner',()=>{
+  it('transfers the crown and reserved bond once, then the new dealer earns a share of actual losing wagers',()=>{
     const f=social(4),b=threshold(f);select(f);for(let n=0;n<2;n++)choices(f,'ROCK','SCISSORS');const d=f.view().party!.social!.duel!,last=f.command(d.defenderId,'duel:choose',{choice:'SCISSORS'});
     expect(f.send(d.inviterId,'duel:choose',{choice:'ROCK'}).status).toBe('ok');const ack=f.manager.command(d.defenderId,last);expect(ack.status).toBe('ok');
     expect(f.view().party).toMatchObject({houseId:d.inviterId,houseSinceRound:1});expect(f.view().hostId).toBe(f.host);expect(f.view().party!.overthrowHistory).toHaveLength(1);expect(f.view().party!.duelHistory).toHaveLength(1);
     expect(f.view().party!.duelStats.find(s=>s.playerId===d.inviterId)).toMatchObject({wins:1,losses:0,draws:0});const after=structuredClone(f.room());expect(f.manager.command(d.defenderId,last)).toEqual(ack);expect(f.send(d.defenderId,'duel:resign').status).toBe('rejected');expect(f.room()).toEqual(after);
-    const newHouse=f.room().players.find(p=>p.id===d.inviterId)!,oldHouse=f.room().players[0]!,balance=newHouse.account.balance;expect(payCommission(f.room(),oldHouse,100)).toBe(3);expect(newHouse.account.balance).toBe(balance+3);
+    const balance=f.room().players.find(p=>p.id===d.inviterId)!.account.balance;
+    expect(f.view().party!.bank.bond).toMatchObject({ownerId:d.inviterId,amount:250});
+    expect(f.room().players[0]!.account.reservations).toEqual({});
     f.advance(2000);expect(f.view()).toMatchObject({phase:'BETTING',round:2});expect(f.send(f.actors[2]!,'house:ballot',undefined,{ballotId:b.id}).status).toBe('rejected');
-    f.advance(RULES.bettingMs+RULES.resultMs);expect(f.view().phase).toBe('SOCIAL');const next=open(f,f.host);expect(next.houseId).toBe(d.inviterId);clean(f);
+    f.manager.e.shoe=()=>shoe(['5','10','5','7']);expect(f.send(f.host,'bet:submit',{amount:100}).status).toBe('ok');f.deal();
+    expect(f.send(f.host,'turn:stand').status).toBe('ok');expect(f.send(d.inviterId,'dealer:stand').status).toBe('ok');
+    expect(f.room().players.find(p=>p.id===d.inviterId)!.account.balance).toBe(balance+50);
+    expect(f.view().party!.bank.rounds.at(-1)).toMatchObject({houseId:d.inviterId,net:100,houseEarnings:50});
+    f.advance(RULES.resultMs);expect(f.view().phase).toBe('SOCIAL');const next=open(f,f.host);expect(next.houseId).toBe(d.inviterId);clean(f);
   });
   it.each(['HOUSE','DRAW'] as const)('retains the existing crown when the outcome is %s',(outcome)=>{
     const f=social(),old=f.view().party!.houseId;threshold(f);select(f);for(let n=0;n<(outcome==='DRAW'?5:3);n++)choices(f,'ROCK',outcome==='DRAW'?'ROCK':'PAPER');

@@ -1,5 +1,6 @@
 import {type ChaosKind,type ChaosRule,type ChaosView,type Command} from '@bluff-house/shared';
 import {available,credit,reserve} from './ledger.js';
+import {reserveLiability,isHouse,maximumBackedBet} from './house-bank.js';
 import {addEvent} from './engine.js';
 import {eligibleHands,handCardReason,applyHandCard} from './chaos-hands.js';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
@@ -27,10 +28,12 @@ function stakeReason(r:Room,p:Player,factor:2|3):string|null{
   const amount=p.wager*factor;
   if(amount>750)return 'The multiplied wager cannot exceed 750 chips.';
   if(amount>available(p.account)+p.wager)return 'You do not have enough available chips to fund the larger wager.';
+  if(r.party&&amount>maximumBackedBet(r,p))return 'The Table Bank cannot back the multiplied wager.';
   return null;
 }
 function cardReason(r:Room,p:Player,kind:ChaosKind):string|null{
   const common=baseReason(r,p);if(common)return common;
+  if(isHouse(r,p)&&kind!=='EMERGENCY_FUND')return 'The House plays the dealer hand. Keep this card for when you are a bettor.';
   const chaos=r.party!.chaos;
   if(chaos.usedRound[p.id]===r.roundId)return 'You have already used your Chaos allowance this round.';
   if(kind==='HAND_SWAP'||kind==='TABLE_TURN'||kind==='SECOND_CHANCE')return handCardReason(r,p,kind);
@@ -50,6 +53,7 @@ function cardReason(r:Room,p:Player,kind:ChaosKind):string|null{
 }
 function optInReason(r:Room,p:Player):string|null{
   const common=baseReason(r,p);if(common)return common;
+  if(isHouse(r,p))return 'The House plays the dealer hand. Keep this card for when you are a bettor.';
   const chaos=r.party!.chaos,window=chaos.potTwist;
   if(r.phase!=='POT_TWIST'||!window||window.status!=='open')return 'Wait for an open Pot Twist window.';
   if(window.optedInIds.includes(p.id))return 'Your wager is already doubled by this Pot Twist.';
@@ -58,7 +62,7 @@ function optInReason(r:Room,p:Player):string|null{
 }
 function applyMultiplier(r:Room,p:Player,factor:2|3,source:ChaosKind){
   const base=p.wager;
-  reserve(p.account,p.wagerId!,base*factor);
+  reserveLiability(r,p,base*factor);reserve(p.account,p.wagerId!,base*factor);
   p.wager=base*factor;r.party!.chaos.multipliers[p.id]={base,factor,source};
 }
 
@@ -132,14 +136,14 @@ export function projectChaos(r:Room,viewerId:string):ChaosView{
 /** A held legal Emergency Fund can keep the next betting phase reachable. */
 export function canAffordNextRound(r:Room):boolean{
   const players=r.players.filter(p=>p.participating&&p.connected&&!p.departed);
-  let count=players.filter(p=>available(p.account)>=1).length;if(count>=2)return true;
+  const needed=r.party?1:2;const bettors=players.filter(p=>!isHouse(r,p));let count=bettors.filter(p=>available(p.account)>=1).length;if(count>=needed)return true;
   if(!r.party)return false;
   let reserveLeft=r.party.bonusReserve;
-  for(const p of players.filter(p=>available(p.account)<1).sort((a,b)=>a.account.balance-b.account.balance||a.seat-b.seat)){
+  for(const p of bettors.filter(p=>available(p.account)<1).sort((a,b)=>a.account.balance-b.account.balance||a.seat-b.seat)){
     if(r.party.chaos.emergencyUsed.includes(p.id)||!(r.party.chaos.inventories[p.id]??[]).some(c=>c.kind==='EMERGENCY_FUND'))continue;
     const award=Math.min(100,reserveLeft);if(!award)break;
     if(available(p.account)+award<1)continue;
-    reserveLeft-=award;if(++count>=2)return true;
+    reserveLeft-=award;if(++count>=needed)return true;
   }
   return false;
 }

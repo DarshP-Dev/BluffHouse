@@ -62,6 +62,7 @@ test('earned Hand Swap moves actual hands, preserves stakes and Second Chance re
   const before = table.view(code);
   const beforeHands = hands(before);
   const stakes = before.players.map(player => ({ balance: player.balance, wager: player.wager, committed: player.committed }));
+  const backing = structuredClone(before.party!.bank);
   await pages[0].reload();
   await expect(pages[0].getByRole('heading', { name: 'Change the hands', exact: true })).toBeVisible();
   await openCard(pages[0], 'Hand Swap');
@@ -74,6 +75,7 @@ test('earned Hand Swap moves actual hands, preserves stakes and Second Chance re
   await pages[0].getByRole('button', { name: 'Play Hand Swap', exact: true }).click();
   await expect.poll(() => hands(table.view(code))).toEqual([beforeHands[1], beforeHands[0], beforeHands[2], beforeHands[3]]);
   expect(table.view(code).players.map(player => ({ balance: player.balance, wager: player.wager, committed: player.committed }))).toEqual(stakes);
+  expect(table.view(code).party!.bank).toEqual(backing);
   await openCard(pages[1], 'Table Turn');
   await expect(pages[1].getByRole('button', { name: 'Play Table Turn', exact: true })).toBeDisabled();
   expect(table.view(code).party!.chaos.inventories[0].cards).toEqual([]);
@@ -107,6 +109,7 @@ test('earned Hand Swap moves actual hands, preserves stakes and Second Chance re
   await expect(pages[0].getByRole('heading', { name: 'Round settled', exact: true })).toBeVisible();
   expect(table.view(code).roundPayouts.map(payout => payout.stake)).toEqual([100, 150, 200, 250]);
   expect(table.view(code).players.map(player => player.balance)).toEqual([900, 850, 1000, 750]);
+  expect(table.view(code).party!.bank).toMatchObject({ balance: 8500, committed: 0 });
   expect(errors).toEqual([]);
 });
 

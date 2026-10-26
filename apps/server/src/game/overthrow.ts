@@ -1,6 +1,7 @@
 import type {BallotView,Command} from '@bluff-house/shared';
 import {requireRule,type Room,type Player,type EngineOptions} from './state.js';
 import {cancelSocialInvites,refreshSocialDeadline,startDuel} from './duels.js';
+import {releaseHouseBond,takeHouseBond} from './house-bank.js';
 import {cancelDealOffers} from './deals.js';
 
 const connected=(r:Room)=>r.players.filter(p=>p.participating&&p.connected&&!p.departed);
@@ -13,8 +14,9 @@ export function failBallot(r:Room,e:EngineOptions,now:number,reason:string){
 }
 export function settleLastStand(r:Room,e:EngineOptions,now:number,winnerId:string|null,reason:string){
   const ballot=r.party?.social?.ballot;requireRule(ballot&&(ballot.status==='selecting'||ballot.status==='playing'),'LAST_STAND_CLOSED');
-  const retained=winnerId!==ballot.challengerId;
-  if(!retained){r.party!.houseId=ballot.challengerId!;r.party!.houseSinceRound=r.round;}
+  const incoming=r.players.find(p=>p.id===ballot.challengerId);
+  const retained=winnerId!==ballot.challengerId||!incoming?.connected||incoming.departed;
+  if(!retained){releaseHouseBond(r,`${ballot.id}:outgoing-bond`);r.party!.houseId=ballot.challengerId!;r.party!.houseSinceRound=r.round;takeHouseBond(r,ballot.challengerId!,`${ballot.id}:incoming-bond`);}
   ballot.status='settled';ballot.winnerId=retained?ballot.houseId:ballot.challengerId;ballot.reason=reason;archive(r,ballot);
   const name=r.players.find(p=>p.id===ballot.winnerId)!.name;
   event(r,e,`${name} ${retained?'retains':'takes'} the House crown. ${reason}`,now,ballot.winnerId);

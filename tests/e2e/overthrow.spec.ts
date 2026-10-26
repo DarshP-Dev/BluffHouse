@@ -30,7 +30,7 @@ async function passBallot(pages: Page[]) {
   await expect(pages[1].getByRole('button', { name: 'Begin Last Stand' })).toHaveCount(0);
 }
 
-test('a real Last Stand transfers only the House crown and next round commissions follow the new House', async ({ table }) => {
+test('a real Last Stand transfers the House dealer role and first-loss bond without changing host authority', async ({ table }) => {
   table.server.manager.e.randomIndex = () => 0;
   const { pages, code } = await partyWithHouse(table);
   const errors: string[] = [];
@@ -51,13 +51,15 @@ test('a real Last Stand transfers only the House crown and next round commission
     await pages[1].getByRole('button', { name: 'Rock', exact: true }).click();
   }
   for (const page of pages) {
-    await expect(page.locator('.duel-summary')).toContainText('Blair takes the House crown.');
+    await expect(page.locator('.duel-summary')).toContainText('Blair takes the dealer seat.');
     await expect(page.getByLabel('Party funds')).toContainText('Blair');
     await expect(page.locator('.duel-summary')).toContainText('No chips moved. The room host is unchanged.');
   }
   expect(table.view(code).party!.houseId).toBe(blair.id);
   expect(table.view(code).hostId).toBe(alex.id);
   expect(table.view(code).players.map(player => player.balance)).toEqual([950, 1000, 1000, 1000]);
+  expect(table.view(code).party!.bank).toMatchObject({ balance: 8000, bond: { ownerId: blair.id, amount: 250 } });
+  expect(table.view(code).players.slice(0, 2).map(player => player.reserved)).toEqual([0, 250]);
   await pages[2].setViewportSize({ width: 390, height: 844 });
   expect(await pages[2].evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await pages[2].screenshot({ path: 'test-results/overthrow-crown-mobile.png', fullPage: true });
@@ -65,9 +67,13 @@ test('a real Last Stand transfers only the House crown and next round commission
   table.advance(2000);
   await expect(pages[0].getByRole('heading', { name: 'Place your bets', exact: true })).toBeVisible();
   await pages[0].getByRole('button', { name: 'Place Bet', exact: false }).click();
-  table.advance(21350);
-  await expect(pages[0].getByLabel('Round payouts')).toContainText('+4 bank-funded commission to Blair');
-  expect(table.view(code).players.slice(0, 2).map(player => player.balance)).toEqual([1100, 1004]);
+  table.advance(21000);
+  await pages[1].getByRole('button', { name: 'Dealer Stand', exact: true }).click();
+  await expect(pages[0].getByLabel('Round payouts')).toContainText('250 returned');
+  await expect(pages[0].getByLabel('Round payouts')).not.toContainText('commission');
+  expect(table.view(code).players.slice(0, 2).map(player => player.balance)).toEqual([1100, 850]);
+  expect(table.view(code).party!.bank).toMatchObject({ balance: 8000, bond: { ownerId: blair.id, amount: 100 } });
+  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -150, bondLoss: 150, bankLoss: 0 });
   table.advance(4000);
   await expect(pages[0].getByRole('heading', { name: 'Challenge your friends', exact: true })).toBeVisible();
   table.advance(20000);

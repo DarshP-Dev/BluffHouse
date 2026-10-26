@@ -2,6 +2,7 @@ import {describe,expect,it,vi} from 'vitest';
 import {RULES} from '@bluff-house/shared';
 import {assertRoom} from '../../apps/server/src/game/engine.js';
 import {reserve} from '../../apps/server/src/game/ledger.js';
+import {validBondReservation} from '../../apps/server/src/game/house-bank.js';
 import {fixture} from '../fixtures/core.js';
 
 type Fixture=ReturnType<typeof fixture>;
@@ -13,7 +14,7 @@ function finishRound(f:Fixture){
   }
   expect(f.view().phase).toBe('ROUND_RESULT');assertRoom(f.room());
 }
-function noPending(f:Fixture){expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);expect(f.room().players.flatMap(p=>Object.values(p.account.reservations))).toEqual([]);assertRoom(f.room());}
+function noPending(f:Fixture){expect(f.room().players.flatMap(p=>Object.values(p.account.escrows))).toEqual([]);for(const p of f.room().players)expect(Object.keys(p.account.reservations).every(key=>validBondReservation(f.room(),p,key))).toBe(true);assertRoom(f.room());}
 
 describe('Party mode authority and sealed auction',()=>{
   it('defaults to Classic, restricts mode changes to the host in the lobby and resets readiness',()=>{
@@ -89,28 +90,28 @@ describe('Party mode authority and sealed auction',()=>{
 });
 
 describe('funded Party settlement, fallback and replay',()=>{
-  it('pays a full 100-chip normal win plus separate three-chip bank commission',()=>{
-    const f=fixture({mode:'PARTY',ranks:['10','10','10','8','9','7']});f.start();bid(f,0,50);f.advance(22000);f.bet();f.deal();finishRound(f);
-    expect(f.view().players.map(p=>p.balance)).toEqual([1053,1100]);expect(f.room().dealerNet).toBe(203);
-    expect(f.view().roundPayouts).toEqual([expect.objectContaining({playerId:f.host,stake:100,returned:200,profit:100,houseCommission:0}),expect.objectContaining({playerId:f.actors[1],stake:100,returned:200,profit:100,houseCommission:3})]);noPending(f);
+  it('pays a full 100-chip normal win from the House bond without passive commission',()=>{
+    const f=fixture({mode:'PARTY',ranks:['10','10','8','7']});f.start();bid(f,0,50);f.advance(22000);f.bet();f.deal();finishRound(f);
+    expect(f.view().players.map(p=>p.balance)).toEqual([850,1100]);expect(f.room().dealerNet).toBe(0);
+    expect(f.view().roundPayouts).toEqual([expect.objectContaining({playerId:f.actors[1],stake:100,returned:200,profit:100,houseCommission:0})]);expect(f.view().party!.bank.rounds.at(-1)).toMatchObject({bondLoss:100,bankLoss:0});noPending(f);
   });
-  it('pays a 50-chip natural in full and floors its separate commission to two',()=>{
-    const f=fixture({mode:'PARTY',ranks:['10','A','10','7','K','7']});f.start();bid(f,0,50);f.advance(22000);f.bet(50);f.deal();finishRound(f);
-    expect(f.view().players.map(p=>p.balance)).toEqual([952,1075]);expect(f.room().dealerNet).toBe(77);
-    expect(f.view().roundPayouts[1]).toMatchObject({stake:50,returned:125,profit:75,houseCommission:2});noPending(f);
+  it('pays a 50-chip natural in full from funded dealer backing',()=>{
+    const f=fixture({mode:'PARTY',ranks:['A','10','K','7']});f.start();bid(f,0,50);f.advance(22000);f.bet(50);f.deal();finishRound(f);
+    expect(f.view().players.map(p=>p.balance)).toEqual([875,1075]);expect(f.room().dealerNet).toBe(0);
+    expect(f.view().roundPayouts[0]).toMatchObject({stake:50,returned:125,profit:75,houseCommission:0});noPending(f);
   });
-  it('allocates the cap in seat order even when internal player storage is reordered',()=>{
-    const f=fixture({mode:'PARTY',players:6,ranks:['A','A','A','A','A','A','10','K','K','K','K','K','K','7']});
+  it('nets five natural payouts before consuming the bond and Bank even when player storage is reordered',()=>{
+    const f=fixture({mode:'PARTY',players:6,ranks:['A','A','A','A','A','10','K','K','K','K','K','7']});
     f.start();bid(f,0,300);f.advance(22000);f.bet(250);f.room().players.reverse();f.deal();finishRound(f);
-    expect(f.view().roundPayouts.map(p=>p.houseCommission)).toEqual([0,11,11,11,11,6]);
-    expect(f.room().players.find(p=>p.id===f.host)!.account.balance).toBe(1125);
-    expect(f.room().players.filter(p=>p.id!==f.host).every(p=>p.account.balance===1375)).toBe(true);expect(f.room().dealerNet).toBe(2300);noPending(f);
+    expect(f.view().roundPayouts.map(p=>p.houseCommission)).toEqual([0,0,0,0,0]);
+    expect(f.room().players.find(p=>p.id===f.host)!.account.balance).toBe(450);
+    expect(f.room().players.filter(p=>p.id!==f.host).every(p=>p.account.balance===1375)).toBe(true);expect(f.room().dealerNet).toBe(1625);noPending(f);
   });
   it('does not tax a funded peer bluff pot or credit the bank during its reveal',()=>{
-    const f=fixture({mode:'PARTY',ranks:['6','9','10','6','8','7','6']});f.start();bid(f,1,50);f.advance(22000);f.bet();f.deal();
+    const f=fixture({mode:'PARTY',ranks:['6','9','6','8','7']});f.start();bid(f,1,50);f.advance(22000);f.bet();f.deal();
     expect(f.send(f.host,'bluff:offer',{claimType:'NEXT_HIT_SAFE',amount:100}).status).toBe('ok');expect(f.send(f.actors[1]!,'bluff:accept').status).toBe('ok');
     expect(f.view().phase).toBe('BLUFF_REVEAL');expect(f.view().bluff).toMatchObject({pot:200,winnerId:f.host});
-    expect(f.view().players.map(p=>p.balance)).toEqual([1000,750]);expect(f.room().dealerNet).toBe(0);expect(f.view().party!.transfers.filter(t=>t.kind==='commission')).toEqual([]);assertRoom(f.room());
+    expect(f.view().players.map(p=>p.balance)).toEqual([1000,850]);expect(f.room().dealerNet).toBe(0);expect(f.view().party!.transfers.filter(t=>t.kind==='commission')).toEqual([]);assertRoom(f.room());
   });
   it('distributes the funded Vault once before final standings, leaves the bonus reserve unspent, and resets Party state on replay',()=>{
     const f=fixture({mode:'PARTY',players:3});f.start();const firstMatch=f.view().matchId;bid(f,0,50);f.advance(22000);

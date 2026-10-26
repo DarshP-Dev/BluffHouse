@@ -13,6 +13,7 @@ import {fileURLToPath} from 'node:url';
 import {io,type Socket} from 'socket.io-client';
 import type {Ack,Command,CommandType,RoomView} from '@bluff-house/shared';
 
+const houseMode=process.argv.includes('--house');
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const sockets:Socket[]=[];
 let child:ChildProcess|undefined,shutdownSent=false,serial=0,maximumPayloadBytes=0,observedSnapshots=0;
@@ -36,7 +37,7 @@ async function guest(url:string,origin:string):Promise<Guest>{
   await new Promise<void>((resolve,reject)=>{socket.once('connect',resolve);socket.once('connect_error',reject);socket.connect();});return p;
 }
 async function send(p:Guest,type:CommandType,payload?:Record<string,unknown>){
-  const v=p.view,command:Command={requestId:`compiled-smoke-${++serial}`,type,...(v?{roomInstanceId:v.instanceId,lobbyId:v.lobbyId,matchId:v.matchId,roundId:v.roundId,bettingId:v.bettingId,decisionId:v.decisionId,offerId:v.bluff?.id}:{}),...(payload?{payload}:{})};
+  const v=p.view,command:Command={requestId:`compiled-smoke-${++serial}`,type,...(v?{roomInstanceId:v.instanceId,lobbyId:v.lobbyId,matchId:v.matchId,roundId:v.roundId,bettingId:v.bettingId,decisionId:v.decisionId,offerId:v.bluff?.id,auctionId:v.party?.auction.id}:{}),...(payload?{payload}:{})};
   const started=performance.now();const ack=await new Promise<Ack>((resolve,reject)=>p.socket.timeout(3000).emit('command',command,(error:Error|null,value:Ack)=>error?reject(error):resolve(value)));latencies.push(performance.now()-started);assert.equal(ack.status,'ok',`${type}: ${ack.code}`);
   await until(()=>p.view&&(p.view.revision>=ack.currentRevision)&&p.view,`${type} authoritative snapshot`);return ack;
 }
@@ -56,26 +57,37 @@ async function main(){
   assert.equal((await fetch(url+'/api/guest',{method:'POST',headers:{Origin:'https://foreign.example'}})).status,403);
   const people=await Promise.all([guest(url,origin),guest(url,origin)]),host=people[0]!;
   await send(host,'room:create',{username:'Production Host'});await send(people[1]!,'room:join',{username:'Production Guest',roomCode:host.view!.code});
-  await until(()=>host.view?.players.length===2&&host.view,'two-seat lobby');for(const p of people)await send(p,'lobby:ready',{ready:true});await send(host,'match:start');
+  await until(()=>host.view?.players.length===2&&host.view,'two-seat lobby');
+  if(houseMode){
+    await send(host,'lobby:mode',{mode:'PARTY'});await send(host,'lobby:finale',{enabled:false});
+    const settings={...host.view!.settings,duels:false,overthrow:false,chaos:false,bounties:false,deals:false,doubleDown:false,extraClaims:false};
+    await send(host,'lobby:settings',{settings,rounds:1,finale:false,visibility:'PRIVATE',startingChips:1000,bettingSeconds:5,turnSeconds:5});
+  }
+  for(const p of people)await send(p,'lobby:ready',{ready:true});await send(host,'match:start');
+  if(houseMode){
+    await until(()=>host.view?.phase==='HOUSE_AUCTION'&&host.view,'real House auction');await send(host,'house:bid',{amount:900});await send(people[1]!,'house:bid',{amount:0});
+  }
   for(const p of people)await until(()=>p.view?.phase==='BETTING'&&p.view,'initial betting snapshot');
+  if(houseMode){assert.equal(host.view!.party!.houseId,host.id);assert.equal(host.view!.party!.bank.bond.amount,100);assert.equal(host.view!.party!.bank.initial,4000);assert.equal(host.view!.players[0]!.available,0);}
   const matchId=host.view!.matchId,betRounds=new Set<number>(),seenCardRounds=new Set<number>();
   for(let count=0;count<1000&&host.view!.phase!=='RESULTS';count++){
     const v=host.view!;
-    if(v.players.some(p=>p.hand.length))seenCardRounds.add(v.round);
-    if(v.phase==='BETTING'&&!betRounds.has(v.round)){for(const p of people){await until(()=>p.view&&p.view.roundId===v.roundId&&p.view.phase==='BETTING'&&p.view,'current betting snapshot');await send(p,'bet:submit',{amount:50});}betRounds.add(v.round);}
+    if(v.players.some(p=>p.hand.length)||v.dealer.length)seenCardRounds.add(v.round);
+    if(v.phase==='BETTING'&&!betRounds.has(v.round)){for(const p of people.filter(person=>!houseMode||person.id!==v.party?.houseId)){await until(()=>p.view&&p.view.roundId===v.roundId&&p.view.phase==='BETTING'&&p.view,'current betting snapshot');await send(p,'bet:submit',{amount:50});}betRounds.add(v.round);}
     else if(v.phase==='PLAYER_TURN'){
       const actor=people.find(p=>p.id===v.activePlayerId)!;await until(()=>actor.view?.decisionId&&actor.view, 'active player decision');await send(actor,'turn:stand');
-    }else await pause(100);
+    }else if(houseMode&&v.phase==='DEALER_TURN'&&v.dealerControls.canStand){await send(host,'dealer:stand');}else await pause(100);
     assert.equal(host.view!.matchId,matchId);
     assert(host.view!.players.every(p=>Number.isSafeInteger(p.balance)&&p.balance>=0));
   }
-  const result=host.view!;assert.equal(result.phase,'RESULTS');assert.equal(result.round,3);assert.equal(betRounds.size,3);assert.equal(seenCardRounds.size,3);assert.equal(result.results!.standings.length,2);assert(result.players.every(p=>p.committed===0&&p.reserved===0));
+  const result=host.view!;assert.equal(result.phase,'RESULTS');const expectedRounds=houseMode?1:3;assert.equal(result.round,expectedRounds);assert.equal(betRounds.size,expectedRounds);assert.equal(seenCardRounds.size,expectedRounds);assert.equal(result.results!.standings.length,2);assert(result.players.every(p=>p.committed===0&&p.reserved===0));
+  if(houseMode){const bank=result.party!.bank;assert.equal(bank.rounds.length,1);assert.equal(bank.bond.amount,0);assert.equal(bank.committed,0);assert(result.players.every(p=>p.balance>=0));assert.equal(result.players.reduce((sum,p)=>sum+p.balance+p.committed,0)+bank.balance+result.party!.vault+result.party!.bonusReserve,6200);assert.equal(result.party!.vault,0);}
   const finalBalances=result.players.map(p=>({playerId:p.id,balance:p.balance}));await send(host,'results:return');assert.equal(host.view!.phase,'LOBBY');assert(host.view!.players.every(p=>p.balance===1000&&!p.ready));
   const restart=new Promise<{message:string}>((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('No compiled-entry shutdown message received.')),3000);host.socket.once('recovery:error',value=>{clearTimeout(timeout);resolve(value);});});
   child.send('shutdown');shutdownSent=true;assert((await restart).message.includes('restarting'));await until(()=>exitCode!==undefined,'clean compiled-entry exit',10000);assert.equal(exitCode,0);await assert.rejects(fetch(url+'/api/health'));
   assert.equal(stderr,'','Production entry wrote unexpected stderr.');
-  const ordered=[...latencies].sort((a,b)=>a-b),report={entry:'apps/server/dist/index.js',mode:'production HTTPS cookie/origin policy over loopback transport (proxy termination simulation)',clock:'unmodified production monotonic clock',randomness:'unmodified production crypto.randomInt six-deck shuffle',players:2,completedRounds:3,replay:'same room, fresh stacks and cleared readiness',assets:assets.length,commands:latencies.length,observedSnapshots,maximumPayloadBytes,ackMedianMs:ordered[Math.floor(ordered.length/2)],ackP95Ms:ordered[Math.floor(ordered.length*.95)],elapsedMs:performance.now()-began,finalBalances,shutdown:'actual entry SIGTERM handler, restart message observed, exit 0, listener closed',limitation:'Local smoke only; not hosted, physical-LAN or internet-capacity verification.'};
-  await mkdir(path.join(root,'test-results'),{recursive:true});await writeFile(path.join(root,'test-results','production-smoke.json'),JSON.stringify(report,null,2));console.info(JSON.stringify(report,null,2));
+  const ordered=[...latencies].sort((a,b)=>a-b),report={entry:'apps/server/dist/index.js',mode:'production HTTPS cookie/origin policy over loopback transport (proxy termination simulation)',clock:'unmodified production monotonic clock',randomness:'unmodified production crypto.randomInt six-deck shuffle',players:2,completedRounds:expectedRounds,game:houseMode?'Party player dealer:900-chip bid,finite Bank,bond,payout and replay':'Classic',dealerBank:houseMode?result.party!.bank:undefined,replay:'same room, fresh stacks and cleared readiness',assets:assets.length,commands:latencies.length,observedSnapshots,maximumPayloadBytes,ackMedianMs:ordered[Math.floor(ordered.length/2)],ackP95Ms:ordered[Math.floor(ordered.length*.95)],elapsedMs:performance.now()-began,finalBalances,shutdown:'actual entry SIGTERM handler, restart message observed, exit 0, listener closed',limitation:'Local smoke only; not hosted, physical-LAN or internet-capacity verification.'};
+  await mkdir(path.join(root,'test-results'),{recursive:true});await writeFile(path.join(root,'test-results',houseMode?'house-production-smoke.json':'production-smoke.json'),JSON.stringify(report,null,2));console.info(JSON.stringify(report,null,2));
 }
 try{await main();}catch(error){console.error(error instanceof Error?error.message:'Production smoke failed.');process.exitCode=1;}
 finally{

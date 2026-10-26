@@ -34,13 +34,11 @@ async function nextRound(table: TableFixture, pages: Page[]) {
   await expect(pages[0].getByRole('heading', { name: 'Place your bets', exact: true })).toBeVisible();
 }
 
-test('earned Chaos cards fund double and triple naturals, optional Pot Twist and separate House commissions', async ({ table }) => {
+test('earned Chaos cards fund double and triple naturals and optional Pot Twist from the finite casino Bank', async ({ table }) => {
   const { pages, code } = await party(table);
   const errors: string[] = [];
   for (const page of pages) page.on('pageerror', error => errors.push(error.message));
-  await pages[0].getByRole('button', { name: 'House bid 50 chips', exact: true }).click();
-  await pages[0].getByRole('button', { name: 'Submit House Bid' }).click();
-  for (const page of pages.slice(1)) await page.getByRole('button', { name: 'Pass Auction', exact: true }).click();
+  for (const page of pages) await page.getByRole('button', { name: 'Pass Auction', exact: true }).click();
   table.advance(22000);
   await expect(pages[0].getByRole('heading', { name: 'Place your bets', exact: true })).toBeVisible();
   let grant = 0;
@@ -89,10 +87,12 @@ test('earned Chaos cards fund double and triple naturals, optional Pot Twist and
   for (const page of pages) await expect(page.getByRole('heading', { name: 'Round settled', exact: true })).toBeVisible();
   const payouts = table.view(code).roundPayouts;
   expect(payouts.map(payout => payout.returned)).toEqual([500, 750, 500, 500]);
-  expect(payouts.map(payout => payout.houseCommission)).toEqual([0, 13, 9, 9]);
-  expect(table.view(code).players.map(player => player.balance)).toEqual([1281, 1450, 1300, 1300]);
+  expect(payouts.map(payout => payout.houseCommission)).toEqual([0, 0, 0, 0]);
+  expect(table.view(code).players.map(player => player.balance)).toEqual([1300, 1450, 1300, 1300]);
+  expect(table.view(code).party!.bank).toMatchObject({ initial: 8000, balance: 6650, committed: 0, bond: { ownerId: null, amount: 0 } });
+  expect(table.view(code).party!.bank.rounds.at(-1)).toMatchObject({ net: -1350, bondLoss: 0, bankLoss: 1350, houseEarnings: 0 });
   await expect(pages[1].getByLabel('Round payouts')).toContainText('750 returned');
-  await expect(pages[1].getByLabel('Round payouts')).toContainText('+13 bank-funded commission to Alex');
+  await expect(pages[1].getByLabel('Round payouts')).not.toContainText('commission');
   expect(errors).toEqual([]);
 });
 

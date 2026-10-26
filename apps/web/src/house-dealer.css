@@ -1,0 +1,63 @@
+/* The House owns one dealer hand; its personal bond is separate from Table Bank capital. */
+.gameplay-felt .dealer-area.house-dealer-seat { position:relative; gap:9px; min-height:170px; padding:8px 12px 12px; margin:0 auto; max-width:560px; }
+.dealer-owner-heading { display:flex; align-items:center; justify-content:center; gap:12px; min-width:0; }
+.dealer-owner-heading>.avatar { width:45px; height:45px; border-color:#ffcf59; }
+.dealer-owner-heading>.avatar::before { font-size:29px; }
+.dealer-owner-heading strong { display:block; color:#fff1b4; font-size:18px; text-align:left; }
+.dealer-owner-heading small { display:block; color:#c1d9ee; font-size:10px; margin-top:4px; text-align:left; }
+.casino-dealer-avatar { display:grid; place-items:center; width:43px; height:43px; flex-shrink:0; border:2px solid #e4bc54; border-radius:50%; background:#071426; color:#ffda69; font-size:29px; }
+.house-dealer-seat .dealer-hand { margin-top:2px; }
+.house-dealer-seat .dealer-privacy-note { font-size:10px; color:#bcd8d6; text-align:center; }
+.gameplay-felt .dealer-controls { width:min(430px,100%); padding:11px; background:#051322eb; border:1px solid #8aab75; border-radius:13px; scroll-margin-top:20px; }
+.dealer-control-buttons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; }
+.dealer-control-buttons>.button { min-width:0; min-height:53px; padding:10px 12px; font-size:17px; gap:16px; }
+.dealer-controls>p { font-size:10px; line-height:1.5; color:#b7cbe5; margin:9px 0 0; text-align:center; }
+.gameplay-left .dealer-bankroll { padding:13px; background:linear-gradient(135deg,#0b1830f5,#030b1ef8); border:2px solid #54729f; border-radius:16px; box-shadow:0 0 0 2px #020712; }
+.dealer-bankroll h2 { font:750 19px var(--sans); color:#ffe19c; margin:0 0 10px; }
+.dealer-bankroll dl,.dealer-round-settlement dl { display:grid; gap:0; margin:0; }
+.dealer-bankroll dl>div,.dealer-round-settlement dl>div { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:7px 0; border-bottom:1px solid #36517966; }
+.dealer-bankroll dt,.dealer-round-settlement dt { min-width:0; font-size:10px; line-height:1.4; color:#bbceed; }
+.dealer-bankroll dd,.dealer-round-settlement dd { margin:0; color:#fff1b5; font:750 14px var(--sans); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.dealer-bankroll .bond-at-risk { padding:8px; margin:5px -4px; border:1px solid #b58d39; border-radius:8px; background:#4c371d55; }
+.dealer-bankroll .bond-at-risk dt { color:#ffdda0; }
+.dealer-bankroll>p { color:#96abd1; font-size:9px; line-height:1.5; margin:10px 0 0; }
+.dealer-round-settlement { margin-top:13px; padding-top:12px; border-top:2px solid #47738e; }
+.dealer-round-settlement h3 { font:750 15px var(--sans); color:#d5e6ff; margin:0 0 7px; }
+.dealer-round-settlement dl>div { padding:5px 0; }
+.dealer-round-settlement dt { font-size:9px; }
+.dealer-round-settlement dd { font-size:12px; }
+.dealer-round-settlement .dealer-loss dd { color:#ff8496; }
+.dealer-round-settlement .dealer-profit dd { color:#61ffc5; }
+.dealer-round-settlement>small { display:block; font-size:9px; line-height:1.5; color:#97add2; margin-top:8px; }
+.bet-builder .bet-backing { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:6px 15px; margin:13px 0; padding:11px 13px; border:1px solid #567ca0; border-radius:10px; background:#0a1d34; color:#b7cfee; font-size:12px; }
+.bet-backing strong { color:#80ffd0; font-size:15px; }
+.bet-backing small { flex-basis:100%; color:#94afd2; font-size:10px; }
+.house-bank-ledger { margin:20px 0; border:1px solid #456490; border-radius:15px; padding:18px; background:#06122a; }
+.house-bank-ledger h2 { font-size:23px; color:#ffe3a1; margin-bottom:15px; }
+.house-bank-ledger .dealer-bankroll { max-width:500px; margin:auto; }
+.dealer-history { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; margin-top:18px; }
+.dealer-history article { border:1px solid #3e5b85; border-radius:12px; padding:14px; background:#0c1c35; }
+.dealer-history h3 { font-size:17px; color:#fff0b6; margin-bottom:9px; }
+.dealer-history p { color:#b9cce9; font-size:12px; line-height:1.6; margin:5px 0; }
+.dealer-accounting-scroll { margin-top:20px; max-width:100%; overflow-x:auto; }
+.dealer-accounting-scroll table { border-collapse:collapse; min-width:850px; width:100%; text-align:left; }
+.dealer-accounting-scroll th,.dealer-accounting-scroll td { padding:12px 10px; border-bottom:1px solid #34517e; font-size:12px; color:#c9d7ee; }
+.dealer-accounting-scroll thead th { color:#ffe2a2; font-weight:700; }
+@media (max-width:700px) {
+ .gameplay-felt .dealer-area.house-dealer-seat { padding:5px 0 11px; gap:8px; }
+ .dealer-owner-heading { gap:9px; }
+ .dealer-owner-heading strong { font-size:15px; }
+ .dealer-owner-heading small { font-size:8px; }
+ .dealer-owner-heading>.avatar { width:36px; height:36px; }
+ .dealer-owner-heading>.avatar::before { font-size:24px; }
+ .gameplay-felt .dealer-controls { padding:9px; }
+ .dealer-control-buttons { gap:8px; }
+ .dealer-control-buttons>.button { font-size:14px; min-height:48px; padding:8px; gap:10px; }
+ .gameplay-left .dealer-bankroll { padding:15px; }
+ .dealer-bankroll dt { font-size:12px; }
+ .dealer-bankroll dd { font-size:16px; }
+ .dealer-bankroll>p { font-size:10px; }
+ .dealer-round-settlement dt { font-size:11px; }
+ .dealer-round-settlement dd { font-size:14px; }
+ .dealer-history { grid-template-columns:1fr; }
+}

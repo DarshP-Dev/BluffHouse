@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {assertRoom} from '../../apps/server/src/game/engine.js';
-import {closeAuction,distributeVault,payCommission} from '../../apps/server/src/game/house.js';
+import {closeAuction,distributeVault} from '../../apps/server/src/game/house.js';
 import {credit,account} from '../../apps/server/src/game/ledger.js';
 import {fixture} from '../fixtures/core.js';
 import {overthrowThreshold} from '../../apps/server/src/game/overthrow.js';
@@ -15,34 +15,8 @@ function crowned(players=2){
   const f=fixture({mode:'PARTY',players});f.start();f.send(f.host,'house:bid',{amount:50});f.advance(22000);return f;
 }
 
-describe('explicitly funded House commissions',()=>{
-  it.each([[75,2],[100,3],[150,4],[375,11],[0,0],[-100,0]])('rounds %s profit down to %s additional bank chips',(profit,expected)=>{
-    const f=crowned(),r=f.room(),house=r.players[0]!,winner=r.players[1]!,before=house.account.balance,playerBefore=winner.account.balance;
-    expect(payCommission(r,winner,profit)).toBe(expected);
-    expect(house.account.balance).toBe(before+expected);expect(winner.account.balance).toBe(playerBefore);expect(r.dealerNet).toBe(expected);
-    expect(payCommission(r,winner,profit)).toBe(0);expect(house.account.balance).toBe(before+expected);assertRoom(r);
-    if(expected)expect(r.party!.transfers.filter(t=>t.kind==='commission')).toEqual([expect.objectContaining({amount:expected,to:house.id,roundId:r.roundId})]);
-  });
-  it('does not pay the House on its own hand or when the auction had no winner',()=>{
-    const f=crowned(),r=f.room(),before=structuredClone(r);expect(payCommission(r,r.players[0]!,375)).toBe(0);expect(r).toEqual(before);
-    const pass=fixture({mode:'PARTY'});pass.start();pass.advance(22000);const passBefore=structuredClone(pass.room());
-    expect(payCommission(pass.room(),pass.room().players[1]!,375)).toBe(0);expect(pass.room()).toEqual(passBefore);
-  });
-  it('caps the combined round at fifty in seat order and resets the cap for a new round',()=>{
-    const f=crowned(6),r=f.room(),house=r.players[0]!,before=house.account.balance;
-    expect(r.players.slice(1).map(p=>payCommission(r,p,375))).toEqual([11,11,11,11,6]);
-    expect(house.account.balance).toBe(before+50);expect(r.dealerNet).toBe(50);
-    expect(r.players.slice(1).map(p=>payCommission(r,p,375))).toEqual([0,0,0,0,0]);
-    r.roundId='second-round';expect(payCommission(r,r.players[1]!,375)).toBe(11);expect(r.dealerNet).toBe(61);assertRoom(r);
-  });
-  it('keeps paying an absent or departed House without modifying its role or host authority',()=>{
-    const f=crowned(),r=f.room(),house=r.players[0]!;house.connected=false;house.departed=true;
-    expect(payCommission(r,r.players[1]!,100)).toBe(3);expect(r.party!.houseId).toBe(house.id);assertRoom(r);
-  });
-  it('does nothing in Classic',()=>{
-    const f=fixture();f.start();const before=structuredClone(f.room());expect(payCommission(f.room(),f.room().players[1]!,100)).toBe(0);expect(f.room()).toEqual(before);
-  });
-});
+// Passive commissions were replaced by the approved dealer's first-loss bond and
+// finite Bank. Their arithmetic and idempotence are exercised in house-bank.test.ts.
 
 describe('Vault settlement and independent credit identities',()=>{
   it('splits funded Vault among original participants including absent/departed seats, with seat-order remainders',()=>{

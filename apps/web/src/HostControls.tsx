@@ -4,7 +4,7 @@ import { sendCommand } from './connection';
 import './host-controls.css';
 
 const features: { key: Exclude<keyof RoomSettings, 'maxPlayers'>; label: string }[] = [
-  { key: 'house', label: 'House auction and commissions' }, { key: 'duels', label: 'Direct duels' }, { key: 'overthrow', label: 'House overthrow' }, { key: 'chaos', label: 'Chaos cards' }, { key: 'bounties', label: 'Bounties' }, { key: 'deals', label: 'Split or Steal deals' }, { key: 'doubleDown', label: 'Ordinary Double Down' }, { key: 'extraClaims', label: 'Additional bluff claims' },
+  { key: 'house', label: 'House auction and player dealer' }, { key: 'duels', label: 'Direct duels' }, { key: 'overthrow', label: 'House overthrow' }, { key: 'chaos', label: 'Chaos cards' }, { key: 'bounties', label: 'Bounties' }, { key: 'deals', label: 'Split or Steal deals' }, { key: 'doubleDown', label: 'Ordinary Double Down' }, { key: 'extraClaims', label: 'Additional bluff claims' },
 ];
 
 export default function HostControls({ room, disabled }: { room: RoomView; disabled: boolean }) {
